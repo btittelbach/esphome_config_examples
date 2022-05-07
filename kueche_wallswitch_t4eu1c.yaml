@@ -1,0 +1,84 @@
+## Sonoff T4eu1C WiFi Wall Switch
+#===============================================================================
+substitutions:
+  device_name: light_switch_kitchen
+  device_friendly_name: "Kitchen Ceiling Light"
+#===============================================================================  
+
+esphome:
+  name: ${device_name}
+  platform: ESP8266
+  board: esp01_1m
+  on_boot: 
+  - light.turn_off: light1
+
+
+wifi:
+  networks:
+    - ssid: !secret iotwifi_name
+      password: !secret iotwifi_pass
+  reboot_timeout: 2h
+
+  ap:
+    ssid: "${device_name} fallback"
+    password: !secret fallbackwifi_pass
+
+logger:
+  baud_rate: 0
+
+# Enable Home Assistant API
+api:
+  password: !secret api_password
+  reboot_timeout: 3h
+
+ota:
+  password: !secret api_password
+
+
+#===============================================================================
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "Button ${device_friendly_name}"
+    on_press:
+      - light.toggle: light1
+
+#===============================================================================
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "IP ${device_friendly_name}"
+
+#===============================================================================
+sensor:
+  - platform: wifi_signal
+    name: "WifiSignal ${device_friendly_name}"
+    update_interval: 120s
+#------------------------------------------------------------------------------
+  - platform: uptime
+    name: "Uptime ${device_friendly_name}"
+
+#===============================================================================
+output:
+  - platform: gpio
+    pin: GPIO12
+    id: relay
+
+switch:
+  - platform: restart
+    name: "Restart ${device_friendly_name}"
+
+light:
+  - platform: binary
+    name: "${device_friendly_name}"
+    output: relay
+    id: light1
+
+#===============================================================================
+status_led:
+  pin:
+    number: GPIO13
+    inverted: yes

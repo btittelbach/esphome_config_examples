@@ -1,0 +1,102 @@
+## Use with Sonoff S20/S26 outlet
+## powercycles a Drei-Tube 5G Router (fallback uplink)
+## in case a script decides the router has crashed or the GW is no longer reachabe
+## (which happens irregularly)
+#===============================================================================
+substitutions:
+  device_name: dreitubeoutlet
+  device_friendly_name: "Drei-Tube Steckdose"
+#===============================================================================  
+
+esphome:
+  name: ${device_name}
+  platform: ESP8266
+  board: esp8285
+  on_boot:
+  - output.turn_on: relaypower
+
+wifi:
+  reboot_timeout: 5h
+  networks:
+    - ssid: !secret kilobaseriot_name
+      password: !secret kilobaseriot_pass
+      priority: 1
+    - ssid: !secret iotwifi_name
+      password: !secret iotwifi_pass
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_friendly_name} Hotspot"
+    password: !secret fallbackwifi_pass
+
+
+#logger:
+
+ota:
+  password: !secret api_password
+
+web_server:
+  port: 80
+  ota: false
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "${device_friendly_name} Button"
+    on_press:
+      - script.execute: powercycle
+  - platform: status
+    name: "${device_friendly_name} Status"
+
+output:
+  - platform: gpio
+    pin: GPIO12
+    id: relaypower
+
+
+button:
+  - platform: template
+    name: "Powercycle ${device_friendly_name}"
+    id: powercycle_${device_name}
+    on_press:
+      - script.execute: powercycle
+  - platform: restart
+    name: "Reboot ${device_friendly_name}"
+    id: rebootme
+
+script:
+  - id: powercycle
+    mode: single
+    then:
+      - logger.log: "Powercycling appliance ..."
+      - output.turn_off: relaypower
+      - delay: 30s
+      - output.turn_on: relaypower
+      - delay: 10s
+
+sensor:
+  - platform: wifi_signal
+    name: "${device_friendly_name} Switch WiFi Signal"
+    update_interval: 60s
+    filters:
+      - sliding_window_moving_average:
+          window_size: 15
+          send_every: 15
+          send_first_at: 1
+    icon: mdi:wifi
+
+mqtt:
+  broker: !secret mqttkb_broker
+  username: !secret mqttkb_username
+  password: !secret mqttkb_password
+  reboot_timeout: 48h
+  discovery: false
+
+status_led:
+  pin:
+    number: GPIO13
+    inverted: yes
+

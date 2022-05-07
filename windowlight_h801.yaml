@@ -1,0 +1,90 @@
+## Use with esp8266 based H801 (controls 5 low-side mosfets for 5V-24V RGB-WW-CW led strips)
+##
+## in this case it controls two lights:
+## - a single-colour WW LED strip mounted around the window, simulating daylight
+## - as well as a RGB+W LED strip mounted below the desk
+##   - which also implements a random-colour effect
+#===============================================================================
+substitutions:
+  device_name: windowlight
+  light1_name: windowlight
+  light1_friendly_name: Window Light
+  light2_name: below_desk_light
+  light2_friendly_name: Below Desk Light
+#===============================================================================  
+
+esphome:
+  name: ${device_name}
+  platform: ESP8266
+  board: esp01_1m
+
+wifi:
+  ssid: !secret iotwifi_name
+  password: !secret iotwifi_pass
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_name} Hotspot"
+    password: !secret fallbackwifi_pass
+
+# Disable logging, which may help with reboots
+logger:
+  level: NONE
+
+# Enable Home Assistant API
+api:
+  password: !secret api_password
+  reboot_timeout: 3h
+
+ota:
+  password: !secret api_password
+
+#mqtt:
+#    broker: !secret mqttpesta_broker
+#    username: !secret mqttpesta_username
+#    password: !secret mqttpesta_password
+
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal ${device_name}"
+    update_interval: 60s
+#RGBWarm
+output:
+  - platform: esp8266_pwm
+    pin: 12
+    frequency: 1000 Hz
+    id: pwm_b
+  - platform: esp8266_pwm
+    pin: 13
+    frequency: 1000 Hz
+    id: pwm_g
+  - platform: esp8266_pwm
+    pin: 15
+    frequency: 1000 Hz
+    id: pwm_r
+  - platform: esp8266_pwm
+    pin: 14
+    frequency: 1000 Hz
+    id: pwm_w1
+  - platform: esp8266_pwm
+    pin: 4
+    frequency: 1000 Hz
+    id: pwm_w2
+light:
+  - platform: rgbw
+    name: "${light2_friendly_name}"
+    id: ${light2_name}
+    red: pwm_r
+    green: pwm_g
+    blue: pwm_b
+    white: pwm_w1
+    effects:
+      - random:
+          name: RandomColour
+          transition_length: 4s
+          update_interval: 30s
+  - platform: monochromatic
+    name: "${light1_friendly_name}"
+    id: ${light1_name}
+    output: pwm_w2
+

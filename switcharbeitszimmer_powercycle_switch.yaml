@@ -1,0 +1,130 @@
+## Workaround for old buggy switch before it was replaced (likely it was just the power-supply, but the S20 was on hand)
+## it's a good example for an appliance that
+## - needs regular powercycling (3 times a week)
+## - needs automatic powercycling on external trigger (wget/curl)
+
+#===============================================================================
+substitutions:
+  device_name: switcharbeitszimmer
+  device_friendly_name: "Linksys Switch"
+#===============================================================================  
+
+esphome:
+  name: ${device_name}
+  platform: ESP8266
+  board: esp8285
+  on_boot: 
+  - switch.turn_on: relay
+  - light.turn_on: s20_green_led
+
+wifi:
+  networks:
+  - ssid: !secret p_mb_laurent_wifi_name
+    password: !secret p_mb_laurent_wifi_pass
+    priority: 3
+  - ssid: !secret iotwifi_name
+    password: !secret iotwifi_pass
+    priority: 0
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Esphome Hotspot"
+    password: !secret fallbackwifi3_pass
+
+captive_portal:
+
+web_server:
+  port: 80
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+#api:
+#  password: !secret api_password
+#  reboot_timeout: 0s
+
+script:
+  - id: powercycle
+    mode: single
+    then:
+      - logger.log: "Powercycling appliance ..."
+      - switch.turn_off: relay
+      - delay: 4s
+      - switch.turn_on: relay
+
+time:
+  - platform: sntp
+    id: sntp_time
+    on_time:
+      ## powercycle networkswitch 3 times a week
+      - seconds: 0
+        minutes: 30
+        hours: 7
+        days_of_week: MON,WED,FRI
+        then:
+          - script.execute: powercycle
+      ## indicate that time has synced with a fade-in-fade-out heartbeat
+      - seconds: /10
+        then:
+          - light.turn_on:
+              id: s20_green_led
+              brightness: 90%
+              transition_length: 1500ms
+          - delay: 2000ms
+          - light.turn_off:
+              id: s20_green_led
+              transition_length: 1500ms
+
+ota:
+  password: !secret api_password
+
+switch:
+  ## on off of relay
+  - platform: gpio
+    name: "${device_friendly_name} Power"
+    pin: GPIO12
+    id: relay
+  ## switch that can be called via curl to powercycle switch if ping-test on wifi-AP fails
+  ## e.g.: curl -d "" http://switcharbeitszimmer.lan/switch/powercycle_switch/toggle
+  - platform: template
+    name: "Powercycle Switch"
+    optimistic: true
+    lambda: return false; # switch is always reported as off
+    turn_on_action:
+      - script.execute: powercycle
+
+output:
+  # Register the green LED as a dimmable output ....
+  - platform: esp8266_pwm
+    id: s20_green_led_pwm
+    pin:
+      number: GPIO13
+      inverted: True
+
+light:
+  - platform: monochromatic
+    id: s20_green_led
+    name: "${device_friendly_name} Sonoff S20 Green LED"
+    output: s20_green_led_pwm
+
+sensor:
+  - platform: wifi_signal
+    name: "${device_friendly_name} WiFi Signal"
+    update_interval: 60s
+    filters:
+      - sliding_window_moving_average:
+          window_size: 15
+          send_every: 15
+          send_first_at: 1
+    icon: mdi:wifi
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "${device_friendly_name} Sonoff S20 Button"
+    on_press:
+      - script.execute: powercycle

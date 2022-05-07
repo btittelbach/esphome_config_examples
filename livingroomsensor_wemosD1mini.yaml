@@ -1,0 +1,62 @@
+## Simple ESP8266 D1 Mini with three sensor connected via I2C
+## Sensors:
+## - BH1750 illuminance
+## - HTU21D temperature + humidity
+## - BMP180 temperature + pressure
+#===============================================================================
+substitutions:
+  device_name: livingroomenvironmentsensor
+  device_friendly_name: "LivingRoomSensor"
+  room_friendly_name: Living Room
+#===============================================================================  
+
+esphome:
+  name: ${device_name}
+  platform: ESP8266
+  board: d1_mini
+
+wifi:
+  ssid: !secret iotwifi_name
+  password: !secret iotwifi_pass
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_friendly_name} fallback"
+    password: !secret fallbackwifi2_pass
+
+captive_portal:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: !secret api_password
+
+ota:
+  password: !secret api_password
+
+## i2c configuration
+i2c:
+  sda: 4
+  scl: 5
+  scan: False
+
+## sensor configuration
+sensor:
+  - platform: bh1750
+    name: "${room_friendly_name} Illuminance BH1750"
+    resolution: 0.5
+    update_interval: 10s
+  - platform: htu21d
+    temperature:
+      name: "${room_friendly_name} Temperature HTU21D"
+    humidity:
+      name: "${room_friendly_name} Humidity HTU21D"
+    update_interval: 60s
+  - platform: bmp085
+    temperature:
+      name: "${room_friendly_name} Temperature BMP180"
+    pressure:
+      name: "${room_friendly_name} Pressure BMP180"
+    update_interval: 60s

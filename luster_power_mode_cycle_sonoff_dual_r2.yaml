@@ -1,0 +1,235 @@
+## Control two ceiling lights using a Sonoff Dual R2
+## the second of which can cycle between Cold-White, Warm-White and Full-Light-Both-White if you power-cycle it quickly
+## The esp tracks which mode is currently active and exports it as an effect to homeassistant
+
+#===============================================================================
+substitutions:
+  device_name: luster
+  device_friendly_name: "Luster"
+#===============================================================================  
+
+esphome:
+  name: ${device_name}
+  platform: ESP8266
+  board: esp01_1m
+  on_boot: 
+  - light.turn_on: light_1
+  - light.turn_off: light_2
+
+
+wifi:
+  ssid: !secret iotwifi_name
+  password: !secret iotwifi_pass
+  reboot_timeout: 0s
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_friendly_name} Fallback Hotspot"
+    password: !secret fallbackwifi_pass
+
+captive_portal:
+
+web_server:
+  port: 80
+
+# Enable logging
+logger:
+  level: WARN
+
+# Enable Home Assistant API
+api:
+  password: !secret api_password
+  #reboot_timeout: 3h
+  reboot_timeout: 0s
+
+ota:
+  password: !secret api_password
+
+#mqtt:
+#    broker: !secret mqttpesta_broker
+#    username: !secret mqttpesta_username
+#    password: !secret mqttpesta_password
+#    reboot_timeout: 0s
+
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    id: button0
+    on_press:
+      then:
+        - light.toggle: light_1
+
+  - platform: gpio
+    pin:
+      number: GPIO9
+      mode: INPUT_PULLUP
+      inverted: True
+    id: button1
+    on_press:
+      then:
+        - light.toggle: light_2
+
+  - platform: gpio
+    pin:
+      number: GPIO10
+      mode: INPUT_PULLUP
+      inverted: True
+    id: button2
+    on_press:
+      then:
+        - light.toggle: light_1
+
+  - platform: status
+    name: "${device_friendly_name} Status"
+
+globals:
+  - id: l2_last_off_time
+    type: uint32_t
+    restore_value: no
+    initial_value: millis()
+  - id: l2_mode_cnt
+    type: uint8_t
+    restore_value: no
+    initial_value: '0'
+  - id: l2_reset_rest_time_ms
+    type: int
+    restore_value: no
+    initial_value: '4000'
+  - id: l2_prev_state
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+output:
+  - platform: gpio
+    pin: GPIO12
+    id: relay_1
+
+  - platform: gpio
+    pin: GPIO5
+    id: relay_2_internal
+
+  - platform: template
+    type: binary
+    id: relay_2
+    write_action:
+      - if:
+          condition:
+            lambda: return state;
+          then:
+            - output.turn_on: relay_2_internal
+          else:
+            - output.turn_off: relay_2_internal
+      - if:
+          condition:
+            lambda: return id(l2_prev_state) != state;
+          then:
+          - globals.set:
+              id: l2_prev_state
+              value: !lambda "return state;"
+          - if:
+              condition:
+                lambda: return state;
+              then:
+                - if:
+                    condition:
+                      lambda: return millis() - id(l2_last_off_time) < id(l2_reset_rest_time_ms);
+                    then:
+                      - globals.set:
+                          id: l2_mode_cnt
+                          value: !lambda "return (id(l2_mode_cnt) +1) % 3;"
+                    else:
+                      - globals.set:
+                          id: l2_mode_cnt
+                          value: '0'
+              else:
+                - globals.set:
+                    id: l2_last_off_time
+                    value: !lambda "return millis();"
+
+
+  - platform: esp8266_pwm
+    id: blue_led
+    pin:
+      number: GPIO13
+      inverted: True
+
+light:
+  - platform: binary
+    name: "${device_friendly_name} L1"
+    id: light_1
+    output: relay_1
+
+  - platform: binary
+    name: "${device_friendly_name} L2"
+    id: light_2
+    output: relay_2
+    effects:
+      - lambda:
+          name: "Cold White"
+          lambda: |-
+            uint8_t target_mode = 0;
+            if (id(l2_mode_cnt) != target_mode) {
+              for(auto m = id(l2_mode_cnt); m!=target_mode; m=(m+1)%3) {
+                id(relay_2).turn_off();
+                delay(300);
+                id(relay_2).turn_on();
+                delay(300);
+              }
+              if (id(l2_mode_cnt) != target_mode) {
+                id(l2_mode_cnt) = target_mode;
+              }
+              delay(2000);
+            }
+      - lambda:
+          name: "Warm White"
+          lambda: |-
+            uint8_t target_mode = 1;
+            if (id(l2_mode_cnt) != target_mode) {
+              for(auto m = id(l2_mode_cnt); m!=target_mode; m=(m+1)%3) {
+                id(relay_2).turn_off();
+                delay(300);
+                id(relay_2).turn_on();
+                delay(300);
+              }
+              if (id(l2_mode_cnt) != target_mode) {
+                id(l2_mode_cnt) = target_mode;
+              }
+              delay(2000);
+            }
+      - lambda:
+          name: "Full Power"
+          lambda: |-
+            uint8_t target_mode = 2;
+            if (id(l2_mode_cnt) != target_mode) {
+              for(auto m = id(l2_mode_cnt); m!=target_mode; m=(m+1)%3) {
+                id(relay_2).turn_off();
+                delay(300);
+                id(relay_2).turn_on();
+                delay(300);
+              }
+              if (id(l2_mode_cnt) != target_mode) {
+                id(l2_mode_cnt) = target_mode;
+              }
+              delay(2000);
+            }
+
+  - platform: monochromatic
+    name: "${device_friendly_name} Blue LED"
+    id: light_blue_led
+    output: blue_led
+
+sensor:
+  - platform: wifi_signal
+    name: "${device_friendly_name} WiFi Signal"
+    update_interval: 60s
+
+  - platform: template
+    name: Light Mode
+    id: light_mode_sensor
+    lambda: return id(l2_mode_cnt);
+    update_interval: 5s

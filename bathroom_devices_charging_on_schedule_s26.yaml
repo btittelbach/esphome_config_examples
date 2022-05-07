@@ -1,0 +1,102 @@
+### Sonoff S20 outlet which powers stuff like e.g. electric rasor etc
+### Device should charge only twice a week for three hours, in order to 
+### minimize the evaporation of the rasor cleaning fluid which is otherwise
+### heated permanently and needs to be changed much more often.
+
+#===============================================================================
+substitutions:
+  device_name: bathroomdevices
+  device_friendly_name: "Bathroom Devices"
+
+#===============================================================================  
+
+
+esphome:
+  name: ${device_name}
+  platform: ESP8266
+  board: esp8285
+
+wifi:
+  ssid: !secret iotwifi_name
+  password: !secret iotwifi_pass
+  reboot_timeout: 5h
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_friendly_name} Hotspot"
+    password: !secret fallbackwifi_pass
+
+captive_portal:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: !secret api_password
+  reboot_timeout: 10h
+
+ota:
+  password: !secret api_password
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "${device_friendly_name} Button"
+    on_press:
+      - switch.toggle: relaypower
+  - platform: status
+    name: "${device_friendly_name} Status"
+
+output:
+  # Register the blue LED as a dimmable output ....
+  - platform: esp8266_pwm
+    id: s20_green_led_output
+    pin:
+      number: GPIO13
+      inverted: True
+  - platform: gpio
+    pin: GPIO12
+    id: relay
+
+switch:
+  - platform: restart 
+    name: "Restart ${device_friendly_name}"   
+  - platform: output
+    name: "${device_friendly_name} Relay"
+    output: relay
+    id: relaypower
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+    on_time:
+      - seconds: 0
+        minutes: 0
+        hours: 15
+        days_of_week: MON,THU
+        then:
+          - switch.turn_on: relaypower
+
+      - seconds: 0
+        minutes: 0
+        hours: 18
+        days_of_week: MON,THU
+        then:
+          - switch.turn_off: relaypower
+
+light:
+  # ... and then make a light out of it.
+  - platform: monochromatic
+    name: "${device_friendly_name} Blue LED"
+    output: s20_green_led_output
+
+
+
+#mqtt:
+#    broker: !secret mqttpesta_broker
+#    username: !secret mqttpesta_username
+#    password: !secret mqttpesta_password

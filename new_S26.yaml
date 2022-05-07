@@ -1,0 +1,85 @@
+# I use this to pre-flash Sonoff S26, so they can be quickly deployed later
+# Homeassistant API and mqtt are disabled
+#===============================================================================
+substitutions:
+  device_name: newunnamed
+  device_friendly_name: "New"
+
+#===============================================================================  
+
+
+esphome:
+  name: ${device_name}
+  platform: ESP8266
+  board: esp8285
+
+wifi:
+  networks:
+  - ssid: !secret iotwifi_name
+    password: !secret iotwifi_pass
+    priority: 10
+  - ssid: !secret kilobaseriot_name
+    password: !secret kilobaseriot_pass
+    priority: 5
+  - ssid: !secret realstuffwifi_name
+    password: !secret realstuffwifi_pass
+    priority: 3
+  reboot_timeout: 5h
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_friendly_name} Fallback Hotspot"
+    password: !secret fallbackwifi_pass
+
+captive_portal:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+#api:
+#  password: !secret api_password
+#  reboot_timeout: 3h
+
+ota:
+  password: !secret api_password
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "${device_friendly_name} Button"
+    on_press:
+      - light.toggle: relaylight
+  - platform: status
+    name: "${device_friendly_name} Status"
+
+output:
+  - platform: esp8266_pwm
+    id: s26_blue_led_output
+    pin:
+      number: GPIO13
+      inverted: True
+  - platform: gpio
+    pin: GPIO12
+    id: relay
+
+switch:
+  - platform: restart 
+    name: "Restart ${device_friendly_name}"   
+
+light:
+  - platform: monochromatic
+    name: "${device_friendly_name} S20 Blue LED"
+    output: s26_blue_led_output
+  - platform: binary
+    name: "${device_friendly_name} S20 Relay"
+    output: relay
+    id: relaylight
+
+#mqtt:
+#    username: !secret mqttpesta_username
+#    password: !secret mqttpesta_password
+#    broker: !secret mqttpesta_broker

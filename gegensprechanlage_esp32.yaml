@@ -1,0 +1,151 @@
+#===============================================================================
+substitutions:
+  device_name: gegensprechanlage
+  device_friendly_name: "Gegensprechanlange"
+#===============================================================================  
+## Put an ESP32 Battery (or optionally permanently powered) relais between
+## the doorbell and the door opener.
+
+
+esphome:
+  name: ${device_name}
+  platform: ESP32
+  board: esp32doit-devkit-v1
+  on_boot: 
+  - switch.turn_on: switch_doorbell_allow_ring
+
+wifi:
+  power_save_mode: HIGH
+  networks:
+  - ssid: !secret karoikanewifi_name
+    password: !secret karoikanewifi_pass
+    priority: 3
+  - ssid: !secret iotwifi_name
+    password: !secret iotwifi_pass
+    priority: 2
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_friendly_name}Hotspot"
+    password: !secret fallbackwifi_pass
+
+# Disable logging, which may help with reboots
+logger:
+  level: NONE
+
+# Enable Home Assistant API
+# api:
+#   password: !secret api_password
+#   reboot_timeout: 0
+
+ota:
+  password: !secret api_password
+
+mqtt:
+    broker: !secret mqttpesta_broker
+    username: !secret mqttpesta_username
+    password: !secret mqttpesta_password
+
+output:
+  - platform: gpio
+    pin: 25
+    id: bell_allow_ring
+    #interlock: [bell_disconnect_and_silence]
+  - platform: gpio
+    pin: 26
+    id: bell_disconnect_and_silence
+    #interlock: [bell_allow_ring]
+  - platform: gpio
+    pin: 27
+    id: door_magnetlock_unlock
+
+button:
+  - platform: template
+    name: "Unlock Housedoor"
+    id: button_door_magnetlock_unlock
+    on_press:
+      then:
+        - output.turn_on: door_magnetlock_unlock
+        - delay: 1500ms
+        - output.turn_off: door_magnetlock_unlock
+
+switch:
+  - platform: template
+    name: "DoorBell allow to ring"
+    id: switch_doorbell_allow_ring
+    turn_on_action:
+      - output.turn_off: bell_disconnect_and_silence
+      - output.turn_on: bell_allow_ring
+      - delay: 0.1s
+      - output.turn_off: bell_allow_ring
+    turn_off_action:
+      - output.turn_off: bell_allow_ring
+      - output.turn_on: bell_disconnect_and_silence
+      - delay: 0.1s
+      - output.turn_off: bell_disconnect_and_silence
+    optimistic: true
+    assumed_state: true
+
+sensor:
+  - platform: adc
+    pin: 35
+    attenuation: 11db
+    filters:
+      - multiply: 2
+    name: "${device_friendly_name} Battery Voltage"
+    id: sensor_battery_voltage
+    update_interval: 4h
+  - platform: wifi_signal
+    name: "${device_friendly_name} WiFi Signal"
+    update_interval: 1h
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: 15
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    id: button0
+    on_press:
+      then:
+        - switch.toggle: switch_doorbell_allow_ring
+  - platform: gpio
+    id: sensor_housedoor_being_unlocked
+    name: "Housedoor being unlocked"
+    device_class: lock
+    pin:
+      number: 12
+      inverted: false
+      mode:
+        input: true
+        pulldown: true
+    filters:
+      - delayed_on: 10ms
+  - platform: gpio
+    id: sensor_doorbell_ringing
+    name: "Doorbell ringing"
+    device_class: sound
+    pin:
+      number: 13
+      inverted: false
+      mode:
+        input: true
+        pulldown: true
+    filters:
+      - delayed_on: 10ms
+  - platform: template
+    id: binarysensor_${device_name}_battery
+    name: "${device_friendly_name} Battery OK"
+    device_class: battery
+    lambda: |-
+      return (id(sensor_battery_voltage).state > 2.98);
+
+deep_sleep:
+  run_duration: 10ms
+  sleep_duration: 2min
+  esp32_ext1_wakeup:
+    pins: [12, 13, 15]
+    mode: ANY_HIGH
+  wakeup_pin_mode: KEEP_AWAKE
