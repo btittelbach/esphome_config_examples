@@ -7,13 +7,13 @@
 substitutions:
   device_name: switcharbeitszimmer
   device_friendly_name: "Linksys Switch"
-#===============================================================================  
+#===============================================================================
 
 esphome:
   name: ${device_name}
-  platform: ESP8266
+  platform: ESP8266w
   board: esp8285
-  on_boot: 
+  on_boot:
   - switch.turn_on: relay
   - light.turn_on: s20_green_led
 

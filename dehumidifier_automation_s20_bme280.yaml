@@ -6,7 +6,7 @@ substitutions:
   device_name: dehumidifier
   device_friendly_name: "Dehumidifier"
   room_friendly_name: "Bathroom"
-#===============================================================================  
+#===============================================================================
 
 esphome:
   name: ${device_name}
@@ -29,7 +29,8 @@ logger:
 
 # Enable Home Assistant API
 api:
-  password: !secret api_password
+  encryption:
+    key: !secret api_encryption_psk
 
 ota:
   password: !secret api_password
@@ -58,19 +59,24 @@ switch:
     pin: GPIO12
     id: relay
 
-output:
-  # Register the green LED as a dimmable output ....
-  - platform: esp8266_pwm
-    id: s20_green_led
-    pin:
-      number: GPIO13
-      inverted: True
+#output:
+#  # Register the green LED as a dimmable output ....
+#  - platform: esp8266_pwm
+#    id: s20_green_led
+#    pin:
+#      number: GPIO13
+#      inverted: True
+#
+#light:
+#  # ... and then make a light out of it.
+#  - platform: monochromatic
+#    name: "Sonoff S20 Green LED"
+#    output: s20_green_led
 
-light:
-  # ... and then make a light out of it.
-  - platform: monochromatic
-    name: "Sonoff S20 Green LED"
-    output: s20_green_led
+status_led:
+  pin:
+    number: GPIO13
+    inverted: yes
 
 #mqtt:
 #    broker: !secret mqttpesta_broker
@@ -97,3 +103,12 @@ sensor:
             - switch.turn_off: relay
     address: 0x77
     update_interval: 60s
+  - platform: wifi_signal
+    name: "${room_friendly_name} WiFi Signal"
+    update_interval: 60s
+    filters:
+      - sliding_window_moving_average:
+          window_size: 15
+          send_every: 15
+          send_first_at: 1
+    icon: mdi:wifi

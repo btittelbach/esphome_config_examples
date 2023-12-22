@@ -1,0 +1,124 @@
+## Use an Raspberry Pico Wifi (rp2040) to read out a Sagemcom Smartmeter using the
+## P1 DSMR interfaces.
+##
+## The electronics of this are rather simple. No level converter required.
+## Just connect 
+## - P1 TX to pico's RX pin
+## - P1 Vcc to pico's 5Vin
+## - P1 two GNDs to pico's GND
+## - and short P1 data-req line to 5V via a resistor.
+## - optionally use an opto-coupler to trigger the P1 data-req line
+## - optionally have a physical 4k7 pullup on the RX pin
+#===============================================================================
+substitutions:
+  device_name: smartmeter
+  device_friendly_name: "Smartmeter"
+#===============================================================================
+
+esphome:
+  name: ${device_name}
+
+rp2040:
+  board: rpipicow
+  framework:
+    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
+
+# external_components:
+#   - source: github://Herbycheck/esphome@dsmr-unit-fix
+#     components: [ dsmr ]
+
+wifi:
+  networks:
+  - ssid: !secret iotwifi_name
+    password: !secret iotwifi_pass
+    priority: 10
+  - ssid: !secret kilobaseriot_name
+    password: !secret kilobaseriot_pass
+    priority: 5
+  - ssid: !secret realraumwifi_name
+    password: !secret realraumwifi_pass
+    priority: 4
+  reboot_timeout: 24h
+
+  ap:
+    ssid: "${device_name} fallback"
+    password: !secret fallbackwifi_pass
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_encryption_psk
+  reboot_timeout: 10h
+
+logger:
+  baud_rate: 0
+
+ota:
+  password: !secret realstuffwifi_pass
+
+
+#===============================================================================
+uart:
+  tx_pin: GPIO16
+  ## https://community.home-assistant.io/t/esphome-dsmr-component-debug-errors-strange-data/441372/7
+  ## inverting the RX pin is  THE SOLUTION
+  rx_pin:
+    number: GPIO17
+    inverted: true
+  baud_rate: 115200
+    #baud_rate: 9600
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+  rx_buffer_size: 3500
+  id: dsmr_uart0_mux1
+#  debug:
+#    direction: RX
+#    dummy_receiver: false
+#    after:
+#      #delimiter: "\n"
+#      delimiter: "\r\n"
+#    sequence:
+#      - lambda: UARTDebug::log_string(direction, bytes);
+
+dsmr:
+  decryption_key: !secret p67_smartmeter_dsmr_decryption_key_lc
+  uart_id: dsmr_uart0_mux1
+  #request_interval: 3s #shortens data-req-pin of smartmeter to 5V (optionally via some R) Nevertheless, pin seems to always be high. though that might only be until dsmr receives first data
+  request_interval: 10s
+  crc_check: true  #should be true, just checking if smartmeter version is old, maybe it does not send crc, then esphome would ignore data
+  max_telegram_length: 3000
+  request_pin: GPIO18
+
+
+sensor:
+  - platform: dsmr
+    energy_delivered_tariff1:
+      name: Energy Consumed Tariff1 ${device_friendly_name}
+    energy_delivered_tariff2:
+      name: Energy Consumed Tariff2 ${device_friendly_name}
+    energy_delivered_lux:
+      name: Energy Consumed Lux ${device_friendly_name}
+    energy_returned_lux:
+      name: Energy Produced Lux ${device_friendly_name}
+    power_delivered:
+      id: power_delivered
+      name: "Power Delivered ${device_friendly_name}"
+  - platform: wifi_signal
+    name: "${device_friendly_name} WifiSignal"
+    update_interval: 120s
+#------------------------------------------------------------------------------
+  - platform: uptime
+    name: "Uptime ${device_friendly_name}"
+
+text_sensor:
+  - platform: dsmr
+    identification:
+      name: "DSMR Identification"
+    p1_version:
+      name: "DSMR Version"
+  - platform: wifi_info
+    ip_address:
+      name: "IP ${device_friendly_name}"
+
+#===============================================================================

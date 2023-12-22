@@ -1,22 +1,44 @@
+## Simple ESP32 with three sensor connected via I2C
+## Sensors:
+## - BH1750 illuminance
+## - HTU21D temperature + humidity
+## - BMP180 temperature + pressure
+##
+## Also:
 ## Control a GW60 blinds motor / rollandenmotor using a ZB35 remote hacked with an esp8266
 ## see https://realraum.at/wiki/doku.php?id=xro:rollohack_gw60
 ##
 ## the remote's buttons remain useable, by using the custom MyTriStateOutput class
+##
+## Also:
+## - acts as BLE proxy
+## - controls A/C via IR
+#===============================================================================
+
 #===============================================================================
 substitutions:
-  device_name: zb35remote
-  device_friendly_name: "ZB35 Rollo Remote"
+  device_name: livingroomsensorzb35
+  room_friendly_name: Living Room
 #===============================================================================
 
 esphome:
   name: ${device_name}
-  platform: ESP8266
-  board: d1_mini
   on_boot:
    - script.execute: rollo_set_gpio_to_input
    - script.wait: rollo_set_gpio_to_input
   includes:
-    - gpio_tristate_output.h
+    - gpio_tristate_output_esp-idf.h
+  platformio_options:
+    board_build.flash_mode: dio
+
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
+      CONFIG_BT_BLE_50_FEATURES_SUPPORTED: y
 
 wifi:
   ssid: !secret iotwifi_name
@@ -24,15 +46,11 @@ wifi:
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
-    ssid: "${device_name} fallback"
+    ssid: "${device_name}"
     password: !secret fallbackwifi2_pass
 
-captive_portal:
-
-# Enable logging
 logger:
 
-# Enable Home Assistant API
 api:
   encryption:
     key: !secret api_encryption_psk
@@ -40,22 +58,121 @@ api:
 ota:
   password: !secret api_password
 
+#mqtt:
+#    broker: !secret mqttpesta_broker
+#    username: !secret mqttpesta_username
+#    password: !secret mqttpesta_password
+#    discovery: false
 
+#web_server:
+#  port: 80
+
+#######################################
+### AC Infrared Remote
+#######################################
+# GPIO18-GPIO19
+
+
+# remote_receiver:
+#   id: rcvr
+#   pin:
+#     number: GPIO19
+#     # inverted: true
+#     # mode:
+#     #   input: true
+#     #   pullup: true
+#   # high 55% tolerance is recommended for some remote control units
+#   tolerance: 55%
+
+remote_transmitter:
+  pin: GPIO18
+  carrier_duty_percent: 50%
+  id: irtx
+
+climate:
+  - platform: midea_ir
+    name: "AirConIR"
+    # sensor: room_temperature
+    use_fahrenheit: false
+    # receiver_id: rcvr
+    transmitter_id: irtx
+    supports_heat: false
+    supports_cool: true
+  # - platform: heatpumpir
+  #   name: "AC2"
+  #   protocol: midea
+  #   horizontal_default: auto
+  #   vertical_default: auto
+  #   max_temperature: 26.0
+  #   min_temperature: 17.0
+  #   transmitter_id: irtx
+
+
+
+#######################################
+### Bluetooth Proxy
+#######################################
+
+esp32_ble_tracker:
+  scan_parameters:
+    interval: 1100ms
+    window: 1100ms
+    active: true
+
+bluetooth_proxy:
+  active: true
+
+
+#######################################
+### Sensor Configuration
+#######################################
+# GPIO8-GPIO9
+
+
+## i2c configuration
+i2c:
+  sda: 8
+  scl: 9
+  scan: False
+
+## sensor configuration
+sensor:
+  - platform: bh1750
+    name: "${room_friendly_name} Illuminance BH1750"
+    update_interval: 10s
+  - platform: htu21d
+    temperature:
+      name: "${room_friendly_name} Temperature HTU21D"
+    humidity:
+      name: "${room_friendly_name} Humidity HTU21D"
+    update_interval: 60s
+  - platform: bmp085
+    temperature:
+      name: "${room_friendly_name} Temperature BMP180"
+    pressure:
+      name: "${room_friendly_name} Pressure BMP180"
+    update_interval: 60s
+
+
+#######################################
+### ZB35 Rollo Control
+#######################################
+# GPIO12-GPIO15
 
 output:
   - platform: custom
     type: float
     lambda: |-
-      auto my_tristate_pin14 = new MyTriStateOutput(14); // D5
-      App.register_component(my_tristate_pin14);
-      return {my_tristate_pin14};
+      auto my_tristate_pin11 = new MyTriStateOutput(4);
+      App.register_component(my_tristate_pin11);
+      return {my_tristate_pin11};
     outputs:
       id: gpio_zb35_b0
 
   - platform: custom
     type: float
     lambda: |-
-      auto my_tristate_pin12 = new MyTriStateOutput(12); // D6
+      auto my_tristate_pin12 = new MyTriStateOutput(5);
       App.register_component(my_tristate_pin12);
       return {my_tristate_pin12};
     outputs:
@@ -64,7 +181,7 @@ output:
   - platform: custom
     type: float
     lambda: |-
-      auto my_tristate_pin13 = new MyTriStateOutput(13); // D7
+      auto my_tristate_pin13 = new MyTriStateOutput(6);
       App.register_component(my_tristate_pin13);
       return {my_tristate_pin13};
     outputs:
@@ -73,9 +190,9 @@ output:
   - platform: custom
     type: float
     lambda: |-
-      auto my_tristate_pin15 = new MyTriStateOutput(15); // D8
-      App.register_component(my_tristate_pin15);
-      return {my_tristate_pin15};
+      auto my_tristate_pin14 = new MyTriStateOutput(7);
+      App.register_component(my_tristate_pin14);
+      return {my_tristate_pin14};
     outputs:
       id: gpio_zb35_b3
 
@@ -279,3 +396,77 @@ cover:
       - script.wait: rollo_stop
       - script.execute: rollo_set_gpio_to_input
       - script.wait: rollo_set_gpio_to_input
+
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: led_light
+    name: "${room_friendly_name} Notification Pixel"
+    pin: 48
+    num_leds: 2
+    rmt_channel: 1
+    rgb_order: GRB
+    chipset: ws2812
+    effects:
+      - addressable_rainbow:
+      - addressable_rainbow:
+          name: Rainbow Effect With Custom Values
+          speed: 10
+          width: 50
+      - addressable_color_wipe:
+
+
+########## ZB35 Output Debugging ########## 
+# number:
+#   - platform: template
+#     name: "gpio_zb35_b0"
+#     step: 0.5
+#     min_value: 0
+#     max_value: 1
+#     initial_value: 0.5
+#     mode: slider
+#     optimistic: true
+#     on_value:
+#       then:
+#       - output.set_level:
+#           id: gpio_zb35_b0
+#           level: !lambda "return x;"        
+#   - platform: template
+#     name: "gpio_zb35_b1"
+#     step: 0.5
+#     min_value: 0
+#     max_value: 1
+#     initial_value: 0.5
+#     mode: slider
+#     optimistic: true
+#     on_value:
+#       then:
+#       - output.set_level:
+#           id: gpio_zb35_b1
+#           level: !lambda "return x;"        
+#   - platform: template
+#     name: "gpio_zb35_b2"
+#     step: 0.5
+#     min_value: 0
+#     max_value: 1
+#     initial_value: 0.5
+#     mode: slider
+#     optimistic: true
+#     on_value:
+#       then:
+#       - output.set_level:
+#           id: gpio_zb35_b2
+#           level: !lambda "return x;"        
+#   - platform: template
+#     name: "gpio_zb35_b3"
+#     step: 0.5
+#     min_value: 0
+#     max_value: 1
+#     initial_value: 0.5
+#     mode: slider
+#     optimistic: true
+#     on_value:
+#       then:
+#       - output.set_level:
+#           id: gpio_zb35_b3
+#           level: !lambda "return x;"        

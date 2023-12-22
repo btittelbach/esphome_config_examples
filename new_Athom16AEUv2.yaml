@@ -1,8 +1,9 @@
-# I use this to pre-flash Sonoff S26, so they can be quickly deployed later
+# I use this to pre-flash Athom 16A EUv2, so they can be quickly deployed later
 # Homeassistant API and mqtt are disabled
+# https://templates.blakadder.com/athom_PG01V2-EU16A-TAS
 #===============================================================================
 substitutions:
-  device_name: newunnamed
+  device_name: newAthom
   device_friendly_name: "New"
 
 #===============================================================================
@@ -33,8 +34,15 @@ wifi:
 
 captive_portal:
 
-# Enable logging
+ota:
+  password: !secret api_password
+
 logger:
+  baud_rate: 0
+
+uart:
+  rx_pin: GPIO03
+  baud_rate: 4800
 
 web_server:
   port: 80
@@ -44,43 +52,62 @@ web_server:
 #  password: !secret api_password
 #  reboot_timeout: 3h
 
-ota:
-  password: !secret api_password
+sensor:
+  - platform: cse7766
+    current:
+      name: "${device_friendly_name} Current"
+      filters:
+        - lambda: "return ((x < 0.5)? 0.0 : x);"
+#        - calibrate_linear:
+#            - 0 -> 0
+#            - 2.48 -> 2.59
+    voltage:
+      name: "${device_friendly_name} Voltage"
+      filters:
+        offset: -1.1
+    power:
+      name: "${device_friendly_name} Power"
+      filters:
+        - lambda: "return ((x < 0.6)? 0.0 : x);"
+#        - calibrate_linear:
+#            - 0 -> 0
+#            - 540 -> 573
+    energy:
+      name: "${device_friendly_name} Energy"
+    update_interval: 20s
 
 binary_sensor:
   - platform: gpio
     pin:
-      number: GPIO0
+      number: GPIO5
       mode: INPUT_PULLUP
       inverted: True
     name: "${device_friendly_name} Button"
     on_press:
-      - light.toggle: relaylight
+      - switch.toggle: relayswitch
   - platform: status
     name: "${device_friendly_name} Status"
 
 output:
-  - platform: esp8266_pwm
-    id: s26_blue_led_output
-    pin:
-      number: GPIO13
-      inverted: True
   - platform: gpio
     pin: GPIO12
     id: relay
 
-switch:
+button:
   - platform: restart
     name: "Restart ${device_friendly_name}"
 
-light:
-  - platform: monochromatic
-    name: "${device_friendly_name} S20 Blue LED"
-    output: s26_blue_led_output
-  - platform: binary
-    name: "${device_friendly_name} S20 Relay"
+switch:
+  - platform: output
+    name: "${device_friendly_name} Relay"
     output: relay
-    id: relaylight
+    id: relayswitch
+
+status_led:
+  pin:
+    number: GPIO13
+    inverted: yes
+
 
 #mqtt:
 #    username: !secret mqttpesta_username

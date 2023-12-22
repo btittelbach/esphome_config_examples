@@ -1,0 +1,398 @@
+## Control a Winkekatze
+#===============================================================================
+substitutions:
+  device_name: winkekatze
+  device_friendly_name: "schwarze Winkekatze"
+#===============================================================================
+
+esphome:
+  name: ${device_name}
+  on_boot:
+    - script.execute: test_leds
+    - script.wait: test_leds
+    - script.execute: reinit_adc
+    - script.wait: reinit_adc
+    - switch.turn_on: winkearmspule_enabled
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: ESP32S3
+  framework:
+    # type: esp-idf
+    # version: recommended
+    type: arduino
+    # version: recommended
+    platform_version: platformio/espressif32 @ 6.1.0
+
+wifi:
+  networks:
+  - ssid: EH20
+    priority: 15
+  - ssid: !secret iotwifi_name
+    password: !secret iotwifi_pass
+    priority: 10
+  - ssid: !secret realraumwifi_name
+    password: !secret realraumwifi_pass
+    priority: 3
+  - ssid: !secret kilobaseriot_name
+    password: !secret kilobaseriot_pass
+    priority: 2
+  reboot_timeout: 5h
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_name} fallback"
+    password: !secret fallbackwifi2_pass
+
+captive_portal:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_encryption_psk
+
+ota:
+  password: !secret api_password
+
+web_server:
+  port: 80
+
+globals:
+  - id: winkearmspule_last_triggered
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+
+## auto restart
+interval:
+ - interval: 20s
+   then:
+     - if:
+         condition:
+           - switch.is_on: winkearmspule_enabled
+           - lambda: |-
+               return (millis() - winkearmspule_last_triggered->value() > 3000) || id(swing_period).state > 900;
+         then:
+           - script.execute: start_winking
+           - script.wait: start_winking
+
+
+script:
+  - id: reinit_adc
+    mode: single
+    then:
+      - lambda: |-
+          winkearmspule_adc->setup();
+  - id: amplify_winking
+    mode: single
+    then:
+      - lambda: |-
+          winkearmspule_gpio->setup();
+      - output.turn_on:
+          id: winkearmspule_gpio
+      # - delay: 20ms
+      - light.turn_on:
+          id: onboardled
+          brightness: 20%
+          red: 0%
+          green: 100%
+          blue: 0%
+          transition_length: 0s
+      - delay: !lambda return id(amplification_pulse_duration_ms).state;
+      - output.turn_off:
+          id: winkearmspule_gpio
+      - lambda: |-
+          winkearmspule_adc->setup();
+      - light.turn_off:
+          id: onboardled
+          transition_length: 0s
+  - id: dampen_winking
+    mode: single
+    then:
+      - light.turn_on:
+          id: onboardled
+          brightness: 20%
+          red: 50%
+          green: 50%
+          blue: 0%
+          transition_length: 0s
+      - delay: !lambda return id(swing_period).state * id(dampen_period_percent).state / 100;
+      - lambda: |-
+          winkearmspule_gpio->setup();
+      - output.turn_on:
+          id: winkearmspule_gpio
+      - light.turn_on:
+            id: onboardled
+            brightness: 20%
+            red: 100%
+            green: 0%
+            blue: 0%
+            transition_length: 0s
+      - delay: !lambda return id(dampening_pulse_duration_ms).state;
+      - output.turn_off:
+          id: winkearmspule_gpio
+      - lambda: |-
+          winkearmspule_adc->setup();
+      - light.turn_off:
+          id: onboardled
+          transition_length: 0s
+
+  - id: start_winking
+    mode: single
+    then:
+      - light.turn_on:
+          id: onboardled
+          brightness: 40%
+          red: 0%
+          green: 0%
+          blue: 100%
+          transition_length: 0s
+      - lambda: |-
+          winkearmspule_gpio->setup();
+      - output.turn_on:
+          id: winkearmspule_gpio
+      - delay: !lambda return id(start_pulse_duration_ms).state;
+      - output.turn_off:
+          id: winkearmspule_gpio
+      - lambda: |-
+          winkearmspule_adc->setup();
+      - light.turn_off:
+          id: onboardled
+          transition_length: 0s
+  - id: test_leds
+    mode: single
+    then:
+      - light.turn_on:
+          id: led1
+          brightness: 100%
+          red: 0%
+          green: 0%
+          blue: 100%
+          transition_length: 0s
+      - delay: 800ms
+      - light.turn_off:
+          id: led1
+          transition_length: 0s
+      - light.turn_on:
+          id: led3
+          brightness: 100%
+          red: 100%
+          green: 0%
+          blue: 0%
+          transition_length: 0s
+      - delay: 800ms
+      - light.turn_off:
+          id: led3
+          transition_length: 0s
+
+output:
+  - platform: gpio
+    pin:
+      number: 8
+    id: winkearmspule_gpio
+
+sensor:
+  - platform: adc
+    pin: 8
+    id: winkearmspule_adc
+    attenuation: 2.5db # 0db # 6db #
+    raw: true
+    update_interval: 10ms
+    internal: true
+  - platform: template
+    name: "Swing Period"
+    id: swing_period
+    update_interval: never
+    filters:
+      - debounce: 80ms
+      - median:
+          window_size: 5
+          send_every: 2
+          send_first_at: 2
+      # exponential_moving_average:
+      #   alpha: 0.8
+      #   send_every: 2
+
+
+binary_sensor:
+  - platform: analog_threshold
+    name: "MagnetInduction"
+    id: magnet_induction
+    internal: true
+    sensor_id: winkearmspule_adc
+    threshold:
+      # upper: 0.077
+      # lower: 0.0755
+      # upper: 58
+      # lower: 30
+      upper: 80
+      lower: 25  # does not work with lower value. as winking after start_winking is not detected otherwise because short winking swings generate noise and adc never returns to near 0
+      # upper: 0.9  #1
+      # lower: 0.2  #0
+    filters:
+      - delayed_on: 2ms
+      - delayed_off: 120ms
+      # - delayed_off: 80ms
+    on_press:
+      then:
+      - sensor.template.publish:
+          id: swing_period
+          state: !lambda 'return millis() - winkearmspule_last_triggered->value();'
+      - globals.set:
+          id: winkearmspule_last_triggered
+          value: !lambda 'return millis();'
+      - if:
+          condition:
+            - switch.is_on: winkearmspule_enabled
+            - not:
+                script.is_running: start_winking
+          then:
+            - script.execute: amplify_winking
+            - script.wait: amplify_winking
+      - if:
+          condition:
+            - switch.is_on: winkearm_dampening_enabled
+            - not:
+                script.is_running: start_winking
+          then:
+            - script.execute: dampen_winking
+            - script.wait: dampen_winking
+
+
+light:
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812x
+    method:
+      type: esp32_rmt
+      channel: 1
+    # rgb_order: GRB
+    # chipset: WS2812B
+    pin: 13
+    num_leds: 4
+    id: leds
+    name: "EyeLeds WS2812B"
+    effects:
+      - addressable_rainbow:
+      - addressable_color_wipe:
+      - flicker:
+      - random:
+      - pulse:
+  - platform: partition
+    name: "RightEye"
+    id: led1
+    segments:
+      - id: leds
+        from: 1
+        to: 1
+  - platform: partition
+    name: "LeftEye"
+    id: led3
+    segments:
+      - id: leds
+        from: 3
+        to: 3
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812x
+    pin: 48
+    num_leds: 1
+    method:
+      type: esp32_rmt
+      channel: 2
+    id: onboardled
+    name: "Onboard LED"
+
+
+switch:
+  - platform: template
+    name: "Winkearm"
+    optimistic: true
+    id: winkearmspule_enabled
+    on_turn_on:
+      - script.stop: start_winking
+      - if:
+          condition:
+            - lambda: |-
+                return millis() - winkearmspule_last_triggered->value() > 2000;
+          then:
+            - script.execute: start_winking
+            - script.wait: start_winking
+    on_turn_off:
+      - script.stop: start_winking
+      - script.stop: amplify_winking
+      - switch.turn_on: winkearm_dampening_enabled
+  - platform: template
+    name: "Dampening"
+    optimistic: true
+    id: winkearm_dampening_enabled
+    on_turn_on:
+      - delay: !lambda return id(dampening_script_runtime_ms).state;
+      - switch.turn_off: winkearm_dampening_enabled
+
+button:
+  - platform: template
+    name: "Magnetic Push"
+    on_press:
+      - script.execute: amplify_winking
+      - script.wait: amplify_winking
+  - platform: template
+    name: "Magnetic Dampen"
+    on_press:
+      - script.execute: dampen_winking
+      - script.wait: dampen_winking
+
+number:
+  - platform: template
+    name: "Dampening Percent of Period"
+    id: "dampen_period_percent"
+    step: 1
+    min_value: 1
+    max_value: 100
+    initial_value: 23
+    restore_value: true
+    mode: slider
+    optimistic: true
+  - platform: template
+    name: "Amplification Pulse Duration (ms)"
+    id: "amplification_pulse_duration_ms"
+    step: 1
+    min_value: 0
+    max_value: 200
+    initial_value: 19
+    restore_value: true
+    mode: slider
+    optimistic: true
+  - platform: template
+    name: "Dampening Pulse Duration (ms)"
+    id: "dampening_pulse_duration_ms"
+    step: 1
+    min_value: 0
+    max_value: 200
+    initial_value: 65
+    restore_value: true
+    mode: slider
+    optimistic: true
+  - platform: template
+    name: "Dampening Script Runtime (ms)"
+    id: "dampening_script_runtime_ms"
+    step: 1
+    min_value: 0
+    max_value: 9000
+    initial_value: 2000
+    restore_value: true
+    mode: slider
+    optimistic: true
+  - platform: template
+    name: "Start Push Pulse Duration (ms)"
+    id: "start_pulse_duration_ms"
+    step: 1
+    min_value: 0
+    max_value: 800
+    initial_value: 150
+    restore_value: true
+    mode: slider
+    optimistic: true

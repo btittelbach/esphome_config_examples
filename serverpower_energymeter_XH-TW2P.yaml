@@ -1,0 +1,147 @@
+#===============================================================================
+substitutions:
+  device_name: serverpower
+  device_friendly_name: "Server Energy"
+  # Higher value gives lower watt readout
+  current_res: "0.00238"
+  # Lower value gives lower voltage readout
+  voltage_div: "725"
+#===============================================================================
+
+
+esphome:
+  name: ${device_name}
+  platform: ESP8266
+  board: esp8285
+
+wifi:
+  networks:
+  - ssid: !secret iotwifi_name
+    password: !secret iotwifi_pass
+    priority: 10
+  reboot_timeout: 1h
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_friendly_name} Fallback Hotspot"
+    password: !secret fallbackwifi_pass
+
+api:
+  encryption:
+    key: !secret api_encryption_psk
+  reboot_timeout: 0s
+
+ota:
+  password: !secret api_password
+
+logger:
+  baud_rate: 0
+
+sensor:
+  - platform: wifi_signal
+    name: "${device_name} Wifi Signal"
+    update_interval: 60s
+    icon: mdi:wifi
+
+  - platform: uptime
+    name: "${device_name} Uptime"
+    update_interval: 60s
+    icon: mdi:clock-outline
+
+  - platform: adc
+    pin: VCC
+    name: "${device_name} VCC Volt"
+    icon: mdi:flash-outline
+
+  - platform: hlw8012
+    sel_pin:
+      number: GPIO3
+      inverted: True
+    cf_pin: GPIO13
+    cf1_pin: GPIO14
+    change_mode_every: 4
+    current_resistor: ${current_res}
+    voltage_divider: ${voltage_div}
+    update_interval: 3s
+
+    current:
+      name: "${device_name} Current"
+      unit_of_measurement: A
+      accuracy_decimals: 3
+      icon: mdi:current-ac
+
+    voltage:
+      name: "${device_name} Voltage"
+      unit_of_measurement: V
+      accuracy_decimals: 1
+      icon: mdi:flash-outline
+
+    power:
+      name: "${device_name} Power"
+      id: "power_sensor"
+      unit_of_measurement: W
+      icon: mdi:gauge
+
+  - platform: total_daily_energy
+    name: "${device_name} Total Daily Energy"
+    power_id: power_sensor
+
+
+time:
+  - platform: homeassistant
+    id: my_time
+
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "${device_name} - IP Address"
+    ssid:
+      name: "${device_name} - Wi-Fi SSID"
+    bssid:
+      name: "${device_name} - Wi-Fi BSSID"
+  - platform: version
+    name: "${device_name} - ESPHome Version"
+    hide_timestamp: true
+
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO4
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "${device_friendly_name} Button"
+    on_press:
+      - switch.toggle: relayswitch
+
+  - platform: status
+    name: "${device_friendly_name} Status"
+
+output:
+  - platform: gpio
+    pin: GPIO12
+    id: relay
+
+button:
+  - platform: restart
+    name: "Restart ${device_friendly_name}"
+
+switch:
+  - platform: output
+    name: "${device_friendly_name} Relay"
+    output: relay
+    internal: true
+    restore_mode: RESTORE_DEFAULT_ON
+    id: relayswitch
+
+status_led:
+  pin:
+    number: GPIO5
+    inverted: yes
+
+
+#mqtt:
+#    username: !secret mqttpesta_username
+#    password: !secret mqttpesta_password
+#    broker: !secret mqttpesta_broker

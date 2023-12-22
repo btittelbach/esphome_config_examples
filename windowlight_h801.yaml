@@ -11,7 +11,7 @@ substitutions:
   light1_friendly_name: Window Light
   light2_name: below_desk_light
   light2_friendly_name: Below Desk Light
-#===============================================================================  
+#===============================================================================
 
 esphome:
   name: ${device_name}
@@ -33,7 +33,8 @@ logger:
 
 # Enable Home Assistant API
 api:
-  password: !secret api_password
+  encryption:
+    key: !secret api_encryption_psk
   reboot_timeout: 3h
 
 ota:

@@ -1,0 +1,179 @@
+#===============================================================================
+substitutions:
+  device_name: "newnous"
+  device_friendly_name: "New"
+  # Higher value gives lower watt readout
+  current_res: "0.00280"
+  # Lower value gives lower voltage readout
+  voltage_div: "775"
+#===============================================================================
+
+esphome:
+  name: $device_name
+  comment: "Nous Smart Wifi Socket A1T (Tasmota)"
+  name_add_mac_suffix: true
+  project:
+    name: "NOUS.Smart-Wifi-Socket"
+    version: "A1T"
+
+esp8266:
+  board: esp8285
+  restore_from_flash: true
+
+
+wifi:
+  networks:
+  - ssid: !secret iotwifi_name
+    password: !secret iotwifi_pass
+    priority: 10
+  - ssid: !secret kilobaseriot_name
+    password: !secret kilobaseriot_pass
+    priority: 5
+  - ssid: !secret realstuffwifi_name
+    password: !secret realstuffwifi_pass
+    priority: 3
+  reboot_timeout: 5h
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_name} Hotspot"
+    password: !secret fallbackwifi_pass
+
+captive_portal:
+
+# # Enable Home Assistant API
+# api:
+#  encryption:
+#    key: !secret api_encryption_psk
+#  reboot_timeout: 10h
+
+ota:
+  password: !secret api_password
+
+logger:
+  baud_rate: 0
+
+# Enable Web server
+web_server:
+  port: 80
+
+sensor:
+  - platform: wifi_signal
+    name: "${device_name} Wifi Signal"
+    update_interval: 60s
+    icon: mdi:wifi
+
+  - platform: uptime
+    name: "${device_name} Uptime"
+    update_interval: 60s
+    icon: mdi:clock-outline
+
+  - platform: adc
+    pin: VCC
+    name: "${device_name} VCC Volt"
+    icon: mdi:flash-outline
+
+  - platform: hlw8012
+    sel_pin:
+      number: GPIO12
+      inverted: True
+    cf_pin: GPIO04
+    cf1_pin: GPIO05
+    change_mode_every: 4
+    current_resistor: ${current_res}
+    voltage_divider: ${voltage_div}
+    update_interval: 3s
+
+    current:
+      name: "${device_name} Current"
+      unit_of_measurement: A
+      accuracy_decimals: 3
+      icon: mdi:current-ac
+
+    voltage:
+      name: "${device_name} Voltage"
+      unit_of_measurement: V
+      accuracy_decimals: 1
+      icon: mdi:flash-outline
+
+    power:
+      name: "${device_name} Power"
+      id: "nous_a1t_watt"
+      unit_of_measurement: W
+      icon: mdi:gauge
+
+ - platform: total_daily_energy
+   name: "${device_name} Electric Consumption [kWh]"
+   power_id: "nous_a1t_watt"
+   filters:
+     # Multiplication factor from W to kW is 0.001
+     - multiply: 0.001
+   unit_of_measurement: kWh
+   icon: mdi:calendar-clock
+
+
+# see: https://esphome.io/components/time.html
+# time:
+#   - platform: homeassistant
+#     id: homeassistant_time
+time:
+  - platform: sntp
+    id: my_time
+
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "${device_name} IP Address"
+    ssid:
+      name: "${device_name} Wi-Fi SSID"
+    bssid:
+      name: "${device_name} Wi-Fi BSSID"
+  - platform: version
+    name: "${device_name} ESPHome Version"
+    hide_timestamp: true
+
+
+binary_sensor:
+  - platform: status
+    name: "${device_name} Status"
+
+
+light:
+  - platform: status_led
+    id: led
+    pin:
+      number: GPIO13
+      inverted: true
+
+
+  # toggle relay on/off
+  - platform: gpio
+    pin:
+      number: GPIO00
+      mode: INPUT_PULLUP
+    id: "button_state"
+    on_press:
+      - switch.toggle: "button_switch"
+
+switch:
+  - platform: template
+    name: "${device_name} Switch"
+    icon: mdi:power
+    optimistic: true
+    id: "button_switch"
+    lambda: |-
+      if (id(relay).state) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+      - switch.turn_on: relay
+      - light.turn_on: led
+    turn_off_action:
+      - switch.turn_off: relay
+      - light.turn_off: led
+  - platform: gpio
+    pin: GPIO14
+    id: relay

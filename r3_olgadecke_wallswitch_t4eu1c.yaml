@@ -3,13 +3,13 @@
 substitutions:
   device_name: light_switch_olgadecke
   device_friendly_name: "OLGA Ceiling Light"
-#===============================================================================  
+#===============================================================================
 
 esphome:
   name: ${device_name}
   platform: ESP8266
   board: esp01_1m
-  on_boot: 
+  on_boot:
   - light.turn_off: light1
 
 

@@ -1,0 +1,64 @@
+## Control a Stepper Driver and Motor
+## Documentation:
+##   https://esphome.io/components/stepper/index.html
+#===============================================================================
+substitutions:
+  device_name: stepperdriver
+  device_friendly_name: "Schrittmotor"
+#===============================================================================
+
+esphome:
+  name: ${device_name}
+  platform: esp8266
+  board: nodemcuv2
+
+wifi:
+  networks:
+  - ssid: !secret kilobaseriot_name
+    password: !secret kilobaseriot_pass
+    priority: 10
+  reboot_timeout: 5h
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_name} fallback"
+    password: !secret fallbackwifi2_pass
+
+captive_portal:
+
+# Enable logging
+logger:
+
+ota:
+  password: !secret api_password
+
+web_server:
+  port: 80
+
+
+number:
+  - platform: template
+    name: Stepper Control
+    min_value: -1000
+    max_value: 1000
+    step: 1
+    set_action:
+      then:
+        - stepper.set_target:
+            id: tmc2209
+            target: !lambda 'return x;'
+
+stepper:
+  - platform: a4988
+    id: tmc2209
+    step_pin: D3
+    dir_pin: D4
+    max_speed: 750 steps/s
+
+    # Optional:
+    sleep_pin:
+      number: D5 # actually EnablePin
+      inverted: true
+    acceleration: 100
+    deceleration: 100
+      #    acceleration: inf
+      #    deceleration: inf

@@ -6,7 +6,7 @@
 substitutions:
   device_name: dreitubeoutlet
   device_friendly_name: "Drei-Tube Steckdose"
-#===============================================================================  
+#===============================================================================
 
 esphome:
   name: ${device_name}

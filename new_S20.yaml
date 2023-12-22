@@ -5,7 +5,7 @@ substitutions:
   device_name: newunnamed
   device_friendly_name: "New"
 
-#===============================================================================  
+#===============================================================================
 
 
 esphome:
@@ -35,6 +35,9 @@ captive_portal:
 
 # Enable logging
 logger:
+
+web_server:
+  port: 80
 
 # Enable Home Assistant API
 #api:
@@ -67,8 +70,8 @@ output:
     id: relay
 
 switch:
-  - platform: restart 
-    name: "Restart ${device_friendly_name}"   
+  - platform: restart
+    name: "Restart ${device_friendly_name}"
 
 light:
   - platform: monochromatic

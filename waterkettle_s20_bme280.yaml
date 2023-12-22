@@ -1,0 +1,120 @@
+## Simple appliance controlled via Sonoff S20 outlet
+## and on the side, measure humidity, temperature and pressure via BME280
+##
+## Button-Press switches devices ON for 5min and then ensures it is OFF again.
+#===============================================================================
+substitutions:
+  device_name: watterkettle
+  device_friendly_name: "SteckdoseKuecheWasserkocher"
+  room_friendly_name: "Kitchen"
+#===============================================================================
+
+esphome:
+  name: ${device_name}
+  platform: ESP8266
+  board: esp8285
+
+wifi:
+  ssid: !secret iotwifi_name
+  password: !secret iotwifi_pass
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_friendly_name}"
+    password: !secret fallbackwifi_pass
+
+captive_portal:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_encryption_psk
+
+ota:
+  password: !secret api_password
+
+## i2c configuration
+i2c:
+  sda: 1
+  scl: 3
+  scan: True
+
+
+script:
+  - id: temporarily_switch_on
+    mode: restart
+    then:
+      - switch.turn_on: relay
+      - light.turn_on:
+          id: s20_green_led
+          effect: pulse
+      - delay: 5 min
+      - switch.turn_off: relay
+      - light.turn_off:
+          id: s20_green_led
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "${device_friendly_name} Button"
+    on_press:
+      - script.execute: temporarily_switch_on
+  - platform: status
+    name: "${device_friendly_name} Status"
+
+switch:
+  - platform: gpio
+    name: "${device_friendly_name} Relay"
+    pin: GPIO12
+    id: relay
+    icon: mdi:kettle
+
+button:
+  - platform: template
+    name: "${device_friendly_name} On-then-Off"
+    icon: mdi:kettle
+    on_press:
+      - script.execute: temporarily_switch_on
+
+output:
+  # Register the green LED as a dimmable output ....
+  - platform: esp8266_pwm
+    id: s20_green_led_pwm
+    pin:
+      number: GPIO13
+      inverted: True
+
+light:
+  # ... and then make a light out of it.
+  - platform: monochromatic
+    name: "${device_friendly_name} Green LED"
+    output: s20_green_led_pwm
+    id: s20_green_led
+    effects:
+      - pulse:
+
+
+#mqtt:
+#    broker: !secret mqttpesta_broker
+#    username: !secret mqttpesta_username
+#    password: !secret mqttpesta_password
+
+
+## sensor configuration
+sensor:
+  - platform: bme280
+    temperature:
+      name: "${room_friendly_name} Temperature"
+      oversampling: 16x
+    pressure:
+      name: "${room_friendly_name} Pressure"
+    humidity:
+      name: "${room_friendly_name} Humidity"
+    address: 0x76
+    update_interval: 60s

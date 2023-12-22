@@ -1,5 +1,5 @@
 ### Sonoff S20 outlet which powers stuff like e.g. electric rasor etc
-### Device should charge only twice a week for three hours, in order to 
+### Device should charge only twice a week for three hours, in order to
 ### minimize the evaporation of the rasor cleaning fluid which is otherwise
 ### heated permanently and needs to be changed much more often.
 
@@ -8,7 +8,7 @@ substitutions:
   device_name: bathroomdevices
   device_friendly_name: "Bathroom Devices"
 
-#===============================================================================  
+#===============================================================================
 
 
 esphome:
@@ -33,7 +33,8 @@ logger:
 
 # Enable Home Assistant API
 api:
-  password: !secret api_password
+  encryption:
+    key: !secret api_encryption_psk
   reboot_timeout: 10h
 
 ota:
@@ -63,8 +64,8 @@ output:
     id: relay
 
 switch:
-  - platform: restart 
-    name: "Restart ${device_friendly_name}"   
+  - platform: restart
+    name: "Restart ${device_friendly_name}"
   - platform: output
     name: "${device_friendly_name} Relay"
     output: relay

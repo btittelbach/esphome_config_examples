@@ -8,7 +8,7 @@ substitutions:
   device_name: livingroomenvironmentsensor
   device_friendly_name: "LivingRoomSensor"
   room_friendly_name: Living Room
-#===============================================================================  
+#===============================================================================
 
 esphome:
   name: ${device_name}
@@ -31,7 +31,8 @@ logger:
 
 # Enable Home Assistant API
 api:
-  password: !secret api_password
+  encryption:
+    key: !secret api_encryption_psk
 
 ota:
   password: !secret api_password
@@ -46,7 +47,6 @@ i2c:
 sensor:
   - platform: bh1750
     name: "${room_friendly_name} Illuminance BH1750"
-    resolution: 0.5
     update_interval: 10s
   - platform: htu21d
     temperature:

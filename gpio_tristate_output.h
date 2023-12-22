@@ -1,4 +1,5 @@
 #include "esphome.h"
+
 using namespace esphome;
 
 class MyTriStateOutput : public Component, public FloatOutput {

@@ -1,0 +1,67 @@
+#===============================================================================
+substitutions:
+  device_name: smokedetector2
+  device_friendly_name: "Rauchmelder"
+  room_friendly_name: "Antechamber"
+#===============================================================================
+
+
+esphome:
+  name: ${device_name}
+  platform: esp8266
+  board: d1_mini
+  on_boot:
+  - script.execute: trigger_alarm_because_we_have_power
+
+wifi:
+  power_save_mode: HIGH
+  fast_connect: true
+  networks:
+  - ssid: !secret iotwifi_name
+    password: !secret iotwifi_pass
+    priority: 2
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_friendly_name}Hotspot"
+    password: !secret fallbackwifi_pass
+
+# Disable logging, which may help with reboots
+logger:
+  #  level: NONE
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_encryption_psk
+
+ota:
+  password: !secret api_password
+
+mqtt:
+    broker: !secret mqttpesta_broker
+    username: !secret mqttpesta_username
+    password: !secret mqttpesta_password
+
+sensor:
+  - platform: adc
+    id: battery_adc
+    name: "Battery Voltage ${device_friendly_name} ${room_friendly_name}"
+    pin: A0
+    update_interval: 5s
+    filters:
+      - offset: 0.3
+      - multiply: 10.82 #3.3*3.28
+
+binary_sensor:
+  - platform: template
+    name: "Alarm ${device_friendly_name} ${room_friendly_name}"
+    id: smoke_alarm_triggered
+
+script:
+  - id: trigger_alarm_because_we_have_power
+    mode: single
+    then:
+      - delay: 1000ms
+      - binary_sensor.template.publish:
+          id: smoke_alarm_triggered
+          state: true
