@@ -35,7 +35,7 @@ wifi:
 captive_portal:
 
 ota:
-  password: !secret api_password
+  password: !secret old_api_password
 
 logger:
   baud_rate: 0
@@ -49,7 +49,7 @@ web_server:
 
 # Enable Home Assistant API
 #api:
-#  password: !secret api_password
+#  password: !secret old_api_password
 #  reboot_timeout: 3h
 
 sensor:

@@ -2,7 +2,7 @@
 substitutions:
   device_name: gegensprechanlage
   device_friendly_name: "Gegensprechanlange"
-#===============================================================================  
+#===============================================================================
 ## Put an ESP32 Battery (or optionally permanently powered) relais between
 ## the doorbell and the door opener.
 
@@ -11,7 +11,7 @@ esphome:
   name: ${device_name}
   platform: ESP32
   board: esp32doit-devkit-v1
-  on_boot: 
+  on_boot:
   - switch.turn_on: switch_doorbell_allow_ring
 
 wifi:
@@ -39,7 +39,8 @@ logger:
 #   reboot_timeout: 0
 
 ota:
-  password: !secret api_password
+  - platform: esphome
+    password: !secret ota_password
 
 mqtt:
     broker: !secret mqttpesta_broker

@@ -17,6 +17,8 @@ substitutions:
 
 esphome:
   name: ${device_name}
+  on_boot:
+    - output.turn_on: rxpullup
 
 rp2040:
   board: rpipicow
@@ -54,7 +56,8 @@ logger:
   baud_rate: 0
 
 ota:
-  password: !secret realstuffwifi_pass
+  - platform: esphome
+    password: !secret ota_password
 
 
 #===============================================================================
@@ -81,6 +84,8 @@ uart:
 #    sequence:
 #      - lambda: UARTDebug::log_string(direction, bytes);
 
+## see: https://esphome.io/components/sensor/dsmr.html
+## manual P1: https://oesterreichsenergie.at/fileadmin/user_upload/Smart_Meter-Plattform/20200201_Konzept_Kundenschnittstelle_SM.pdf
 dsmr:
   decryption_key: !secret p67_smartmeter_dsmr_decryption_key_lc
   uart_id: dsmr_uart0_mux1
@@ -90,6 +95,11 @@ dsmr:
   max_telegram_length: 3000
   request_pin: GPIO18
 
+
+output:
+  - platform: gpio
+    pin: GPIO20
+    id: rxpullup
 
 sensor:
   - platform: dsmr

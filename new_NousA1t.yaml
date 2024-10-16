@@ -48,7 +48,8 @@ captive_portal:
 #  reboot_timeout: 10h
 
 ota:
-  password: !secret api_password
+  - platform: esphome
+    password: !secret ota_password
 
 logger:
   baud_rate: 0

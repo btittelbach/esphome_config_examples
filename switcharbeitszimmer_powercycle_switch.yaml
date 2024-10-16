@@ -11,7 +11,7 @@ substitutions:
 
 esphome:
   name: ${device_name}
-  platform: ESP8266w
+  platform: ESP8266
   board: esp8285
   on_boot:
   - switch.turn_on: relay
@@ -77,7 +77,7 @@ time:
               transition_length: 1500ms
 
 ota:
-  password: !secret api_password
+  password: !secret old_api_password
 
 switch:
   ## on off of relay

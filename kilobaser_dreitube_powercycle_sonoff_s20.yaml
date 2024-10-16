@@ -33,7 +33,7 @@ wifi:
 #logger:
 
 ota:
-  password: !secret api_password
+  password: !secret old_api_password
 
 web_server:
   port: 80

@@ -9,6 +9,8 @@ substitutions:
   current_res: "0.00137"
   # Lower value gives lower voltage readout
   voltage_div: "725"
+  current_multiply: "1.854"
+## calculate using form at: https://esphome.io/components/sensor/hlw8012.html
 #===============================================================================
 
 
@@ -49,7 +51,8 @@ captive_portal:
 #  reboot_timeout: 10h
 
 ota:
-  password: !secret api_password
+  - platform: esphome
+    password: !secret ota_password
 
 logger:
   baud_rate: 0
@@ -90,6 +93,8 @@ sensor:
       unit_of_measurement: A
       accuracy_decimals: 3
       icon: mdi:current-ac
+      filters:
+        - multiply: ${current_multiply}
 
     voltage:
       name: "${device_name} Voltage"

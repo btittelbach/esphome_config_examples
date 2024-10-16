@@ -1,0 +1,73 @@
+#===============================================================================
+substitutions:
+  device_name: eh2024-badge
+  device_friendly_name: "EH2024 Badge Power Indicator"
+#===============================================================================
+
+esphome:
+  name: ${device_name}
+
+esp32:
+  board: esp32doit-devkit-v1
+  framework:
+    type: arduino
+
+wifi:
+  networks:
+  - ssid: EH20
+    priority: 15
+  - ssid: !secret iotwifi_name
+    password: !secret iotwifi_pass
+    priority: 10
+  - ssid: !secret realraumwifi_name
+    password: !secret realraumwifi_pass
+    priority: 3
+  - ssid: !secret kilobaseriot_name
+    password: !secret kilobaseriot_pass
+    priority: 2
+  reboot_timeout: 5h
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_name} fallback"
+    password: !secret fallbackwifi2_pass
+
+# Enable logging
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_psk
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# web_server:
+#   port: 80
+
+output:
+  - platform: esp32_dac
+    pin: 26
+    id: dac_output
+    inverted: true
+    min_power: 0.65
+    max_power: 1.0
+    zero_means_zero: true
+
+# Use the DAC output as a light
+light:
+  - platform: monochromatic
+    output: dac_output
+    id: badge_light
+    name: Badge Light Power
+
+
+sensor:
+  - platform: adc
+    pin: 32
+    id: badge_voltage_adc
+    name: Badge Voltage
+    attenuation: auto # 0db # 6db #
+    update_interval: 2s
+    raw: false
+

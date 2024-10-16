@@ -14,6 +14,7 @@ esphome:
 
 
 wifi:
+  power_save_mode: LIGHT
   networks:
     - ssid: !secret iotwifi_name
       password: !secret iotwifi_pass
@@ -33,7 +34,9 @@ api:
   reboot_timeout: 3h
 
 ota:
-  password: !secret api_password
+  - platform: esphome
+    password: !secret ota_password
+
 
 
 #===============================================================================

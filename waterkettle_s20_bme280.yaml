@@ -4,7 +4,7 @@
 ## Button-Press switches devices ON for 5min and then ensures it is OFF again.
 #===============================================================================
 substitutions:
-  device_name: watterkettle
+  device_name: waterkettle
   device_friendly_name: "SteckdoseKuecheWasserkocher"
   room_friendly_name: "Kitchen"
 #===============================================================================
@@ -26,7 +26,7 @@ wifi:
 captive_portal:
 
 # Enable logging
-logger:
+#logger:
 
 # Enable Home Assistant API
 api:
@@ -34,7 +34,8 @@ api:
     key: !secret api_encryption_psk
 
 ota:
-  password: !secret api_password
+  - platform: esphome
+    password: !secret ota_password
 
 ## i2c configuration
 i2c:
@@ -48,13 +49,13 @@ script:
     mode: restart
     then:
       - switch.turn_on: relay
-      - light.turn_on:
-          id: s20_green_led
-          effect: pulse
+      # - light.turn_on:
+      #     id: s20_green_led
+      #     effect: pulse
       - delay: 5 min
       - switch.turn_off: relay
-      - light.turn_off:
-          id: s20_green_led
+      # - light.turn_off:
+      #     id: s20_green_led
 
 binary_sensor:
   - platform: gpio
@@ -82,23 +83,10 @@ button:
     on_press:
       - script.execute: temporarily_switch_on
 
-output:
-  # Register the green LED as a dimmable output ....
-  - platform: esp8266_pwm
-    id: s20_green_led_pwm
-    pin:
-      number: GPIO13
-      inverted: True
-
-light:
-  # ... and then make a light out of it.
-  - platform: monochromatic
-    name: "${device_friendly_name} Green LED"
-    output: s20_green_led_pwm
-    id: s20_green_led
-    effects:
-      - pulse:
-
+status_led:
+  pin:
+    number: GPIO13
+    inverted: yes
 
 #mqtt:
 #    broker: !secret mqttpesta_broker
@@ -108,7 +96,7 @@ light:
 
 ## sensor configuration
 sensor:
-  - platform: bme280
+  - platform: bme280_i2c
     temperature:
       name: "${room_friendly_name} Temperature"
       oversampling: 16x
@@ -118,3 +106,14 @@ sensor:
       name: "${room_friendly_name} Humidity"
     address: 0x76
     update_interval: 60s
+  - platform: wifi_signal
+    name: "${device_friendly_name} Wifi Signal"
+    update_interval: 60s
+    icon: mdi:wifi
+  - platform: uptime
+    name: "${device_friendly_name} Uptime"
+    update_interval: 60s
+    icon: mdi:clock-outline
+
+
+

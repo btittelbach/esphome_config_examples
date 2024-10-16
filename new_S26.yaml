@@ -21,6 +21,9 @@ wifi:
   - ssid: !secret kilobaseriot_name
     password: !secret kilobaseriot_pass
     priority: 5
+  - ssid: !secret realraumwifi_name
+    password: !secret realraumwifi_pass
+    priority: 4
   - ssid: !secret realstuffwifi_name
     password: !secret realstuffwifi_pass
     priority: 3
@@ -41,11 +44,12 @@ web_server:
 
 # Enable Home Assistant API
 #api:
-#  password: !secret api_password
+#  password: !secret old_api_password
 #  reboot_timeout: 3h
 
 ota:
-  password: !secret api_password
+  - platform: esphome
+    password: !secret ota_password
 
 binary_sensor:
   - platform: gpio

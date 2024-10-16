@@ -1,11 +1,7 @@
-## Monitors power consumtion of a diswasher
-## and detects when dishwasher has started and finished
-#===============================================================================
 substitutions:
-  device_name: dishwasher
-  device_friendly_name: "Geschirrspuehler"
-  room_friendly_name: "Kitchen"
-#===============================================================================
+  device_name: waschmaschine
+  device_friendly_name: "Waschmaschine"
+  room_friendly_name: "Bathroom"
 
 esphome:
   name: ${device_name}
@@ -19,7 +15,7 @@ wifi:
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
-    ssid: "${device_friendly_name} Hotspot"
+    ssid: "${device_friendly_name} Fallback Hotspot"
     password: !secret fallbackwifi_pass
 
 captive_portal:
@@ -37,7 +33,8 @@ api:
     key: !secret api_encryption_psk
 
 ota:
-  password: !secret ota_password
+  - platform: esphome
+    password: !secret ota_password
 
 
 
@@ -52,24 +49,23 @@ sensor:
   - platform: cse7766
     current:
       name: "${device_friendly_name} Current"
-      id: "sensor_current"
       filters:
         - lambda: "return ((x < 0.5)? 0.0 : x);"
         - calibrate_linear:
             - 0 -> 0
-            - 2.58 -> 2.6
+            - 2.48 -> 2.59
+      id: "sensor_current"
     voltage:
       name: "${device_friendly_name} Voltage"
       filters:
-        offset: -1.1
+        offset: 0.4
     power:
       name: "${device_friendly_name} Power"
-      id: "sensor_power"
       filters:
         - lambda: "return ((x < 0.6)? 0.0 : x);"
         - calibrate_linear:
             - 0 -> 0
-            - 583 -> 594
+            - 540 -> 573
     energy:
       name: "${device_friendly_name} Energy"
   - platform: template
@@ -102,10 +98,9 @@ binary_sensor:
     id: sensor_device_in_operation
     device_class: running
     lambda: |-
-      return (id(relayswitch).state) && (id(sensor_power).state > 50);
+      return (id(relayswitch).state) && (id(sensor_current).state > 0.5);
     filters:
-      - delayed_off: 50min
-        ### warning: actually, after the last heating phase, the dishwasher will draw 0W for 48min and then use the pump one last time at 60W
+      - delayed_off: 6min
     on_press:
       then:
       - globals.set:
@@ -131,7 +126,7 @@ switch:
     name: "${device_friendly_name} Relay"
     output: relay
     id: relayswitch
-    icon: mdi:dishwasher
+    icon: mdi:washing-machine
 
 status_led:
   pin:

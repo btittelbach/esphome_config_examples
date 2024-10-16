@@ -15,16 +15,13 @@ esphome:
   board_flash_mode: dout
 
 wifi:
+  power_save_mode: none
   networks:
   - ssid: !secret p_mb_laurent_wifiiot_name
     password: !secret p_mb_laurent_wifiiot_pass
     priority: 9
-  - ssid: !secret iotwifi_name
-    password: !secret iotwifi_pass
-    priority: 1
-  - ssid: !secret     kilobaseriot_name
-    password: !secret kilobaseriot_pass
-    priority: 0
+  reboot_timeout: 6h
+  fast_connect: true
 
 # Disable logging
 logger:
@@ -37,7 +34,8 @@ api:
 
 
 ota:
-  password: !secret api_password
+  - platform: esphome
+    password: !secret old_api_password
 
 #mqtt:
 #    broker: !secret mqttpesta_broker
@@ -77,15 +75,18 @@ climate:
     id: boilertemp_bangbang_regelung
     name: "Boilertemperaturregelung"
     sensor: warmwaterboiler_temp_sensor
-    default_target_temperature_low: 19 °C
-    default_target_temperature_high: 20 °C
+    default_target_temperature_low: 38 °C
+    default_target_temperature_high: 47 °C
     away_config:
-      default_target_temperature_low: 15°C
+      default_target_temperature_low: 12°C
       default_target_temperature_high: 15°C
     heat_action:
       - switch.turn_on: relay
     idle_action:
       - switch.turn_off: relay
+    visual:
+      min_temperature: 12
+      max_temperature: 70
 
 light:
   - platform: monochromatic
@@ -98,8 +99,9 @@ uart:
   baud_rate: 4800
 
 # DS18b20 Sensor
-dallas:
-  - pin: GPIO16 ## pin15 should not be pulled high on esp8266, it will not boot if CS-pin is high. thus the pullup is bad. maybe get vdd from somewhere else
+one_wire:
+  - platform: gpio
+    pin: GPIO16 ## pin15 should not be pulled high on esp8266, it will not boot if CS-pin is high. thus the pullup is bad. maybe get vdd from somewhere else
 
 button:
   - platform: restart
@@ -107,7 +109,6 @@ button:
 
 sensor:
   - platform: cse7766
-    update_interval: 30s
     current:
       name: ${device_friendly_name} Current
       icon: mdi:current-ac
@@ -150,19 +151,16 @@ sensor:
           send_every: 15
           send_first_at: 1
     icon: mdi:wifi
-  - platform: dallas
-    index: 0
+  - platform: dallas_temp
     id: warmwaterboiler_temp_sensor
     name: "${device_friendly_name} Temperature"
     #update_interval: 10s
 
-#  - platform: dallas
+#  - platform: dallas_temp
 #    #address: 0x1c0000031edd2a28
-#    index: 1
 #    name: "Heizung Vorlauftemperatur"
-#  - platform: dallas
+#  - platform: dallas_temp
 #    #address: 0x1c0000031edd2a28
-#    index: 2
 #    name: "Heizung Rücklauftemperatur"
 
 time:

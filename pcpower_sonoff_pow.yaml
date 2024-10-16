@@ -18,6 +18,7 @@ esphome:
 #  - switch.turn_on: relay
 
 wifi:
+  power_save_mode: HIGH
   ssid: !secret iotwifi_name
   password: !secret iotwifi_pass
 
@@ -32,7 +33,7 @@ api:
 
 
 ota:
-  password: !secret api_password
+  password: !secret ota_password
 
 #mqtt:
 #    broker: !secret mqttpesta_broker

@@ -18,6 +18,7 @@ esphome:
 
 
 wifi:
+  power_save_mode: LIGHT
   ssid: !secret iotwifi_name
   password: !secret iotwifi_pass
   reboot_timeout: 0s
@@ -44,7 +45,7 @@ api:
   reboot_timeout: 0s
 
 ota:
-  password: !secret api_password
+  password: !secret ota_password
 
 #mqtt:
 #    broker: !secret mqttpesta_broker

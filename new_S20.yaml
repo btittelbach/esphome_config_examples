@@ -41,11 +41,12 @@ web_server:
 
 # Enable Home Assistant API
 #api:
-#  password: !secret api_password
+#  password: !secret old_api_password
 #  reboot_timeout: 3h
 
 ota:
-  password: !secret api_password
+  - platform: esphome
+    password: !secret ota_password
 
 binary_sensor:
   - platform: gpio
