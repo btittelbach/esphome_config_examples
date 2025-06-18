@@ -1,0 +1,463 @@
+## Wheel of Drinks - Bottom Light Selector
+## Press the button (BOOT on PCB or GND to SD or bridge the outer pins of the 3pin-headers)
+#===============================================================================
+substitutions:
+  device_name: wheel-of-drinks
+  device_friendly_name: "Wheel Of Drinks"
+  num_leds: "9"
+#===============================================================================
+
+esphome:
+  name: ${device_name}
+
+esp32:
+  board: esp32doit-devkit-v1
+  # variant: ESP32S3
+  framework:
+    # type: esp-idf
+    # version: recommended
+    type: arduino
+    # version: recommended
+    # platform_version: platformio/espressif32 @ 6.1.0
+
+wifi:
+  networks:
+  - ssid: !secret iotwifi_name
+    password: !secret iotwifi_pass
+    priority: 10
+
+  reboot_timeout: 5h
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_name} fallback"
+    password: !secret fallbackwifi2_pass
+
+# Enable logging
+logger:
+
+# # Enable Home Assistant API
+# api:
+#   encryption:
+#     key: !secret api_encryption_psk
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+web_server:
+  port: 80
+
+globals:
+  - id: prev_random_num
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: random_num
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: random_cntdown
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: last_execution_timestamp
+    type: uint32_t
+    restore_value: no
+    initial_value: 'millis()'
+  - id: random_blink
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+
+script:
+  - id: choose_rnd_drink
+    mode: restart
+    then:
+      - script.stop: rnd_blink
+      - delay: 50ms
+      - light.turn_on:
+          id: alllights
+          transition_length: 200ms
+          brightness: 30%
+      - delay: 210ms
+      - light.turn_off:
+          id: alllights
+          transition_length: 200ms
+      - delay: 210ms
+      - globals.set:
+          id: random_cntdown
+          value: !lambda 'return (rand() & 0x07 + 0x07);'
+      - globals.set:
+          id: last_execution_timestamp
+          value: !lambda 'return millis();'
+      - repeat:
+          count: !lambda 'return id(random_cntdown);'
+          then:
+            - globals.set:
+                id: random_num
+                value: !lambda 'return (rand() % $num_leds);'
+            # - light.turn_off:
+            #     id: alllights
+            #     transition_length: 150ms
+            - if:
+                condition:
+                  lambda: 'return (iteration % 2 == 0);'
+                then:
+                  - light.turn_off:
+                      id: alllights
+                      transition_length: 180ms
+            - light.addressable_set:
+                id: alllights
+                range_from: !lambda 'return id(random_num);'
+                range_to: !lambda 'return id(random_num);'
+                white: 10%
+                red: 10%
+                blue: 10%
+                green: 10%
+            - delay: 22ms
+            - light.addressable_set:
+                id: alllights
+                range_from: !lambda 'return id(random_num);'
+                range_to: !lambda 'return id(random_num);'
+                white: 20%
+                red: 20%
+                blue: 20%
+                green: 20%
+            - delay: 22ms
+            - light.addressable_set:
+                id: alllights
+                range_from: !lambda 'return id(random_num);'
+                range_to: !lambda 'return id(random_num);'
+                white: 30%
+                red: 30%
+                blue: 30%
+                green: 30%
+            - delay: 22ms
+            - light.addressable_set:
+                id: alllights
+                range_from: !lambda 'return id(random_num);'
+                range_to: !lambda 'return id(random_num);'
+                white: 40%
+                red: 40%
+                blue: 40%
+                green: 40%
+            - delay: 22ms
+            - light.addressable_set:
+                id: alllights
+                range_from: !lambda 'return id(random_num);'
+                range_to: !lambda 'return id(random_num);'
+                white: 55%
+                red: 55%
+                blue: 55%
+                green: 55%
+            - delay: 22ms
+            - light.addressable_set:
+                id: alllights
+                range_from: !lambda 'return id(random_num);'
+                range_to: !lambda 'return id(random_num);'
+                white: 75%
+                red: 75%
+                blue: 75%
+                green: 75%
+            - delay: !lambda 'return (((id(random_cntdown)-iteration) < 10)? 100+(300-(30*(id(random_cntdown)-iteration))):100);'
+      - globals.set:
+          id: random_num
+          value: !lambda 'return ((id(random_num) == id(prev_random_num))? (id(random_num)+1) % $num_leds:id(random_num));'
+      - globals.set:
+          id: prev_random_num
+          value: !lambda 'return (id(random_num));'
+      - delay: 210ms
+      - light.turn_off:
+          id: alllights
+          transition_length: 20ms
+      - delay: 25ms
+      - light.addressable_set:
+          id: alllights
+          range_from: !lambda 'return id(random_num);'
+          range_to: !lambda 'return id(random_num);'
+          white: 50%
+          red: 50%
+          blue: 50%
+          green: 50%
+      - delay: 100ms
+      - light.addressable_set:
+          id: alllights
+          range_from: !lambda 'return id(random_num);'
+          range_to: !lambda 'return id(random_num);'
+          white: 100%
+          red: 100%
+          blue: 100%
+          green: 100%
+      - delay: 100ms
+      - light.addressable_set:
+          id: alllights
+          range_from: !lambda 'return id(random_num);'
+          range_to: !lambda 'return id(random_num);'
+          white: 60%
+          red: 60%
+          blue: 60%
+          green: 60%
+      - delay: 100ms
+      - light.addressable_set:
+          id: alllights
+          range_from: !lambda 'return id(random_num);'
+          range_to: !lambda 'return id(random_num);'
+          white: 50%
+          red: 50%
+          blue: 50%
+          green: 50%
+      - delay: 100ms
+      - light.addressable_set:
+          id: alllights
+          range_from: !lambda 'return id(random_num);'
+          range_to: !lambda 'return id(random_num);'
+          white: 100%
+          red: 100%
+          blue: 100%
+          green: 100%
+      - delay: 100ms
+      - light.addressable_set:
+          id: alllights
+          range_from: !lambda 'return id(random_num);'
+          range_to: !lambda 'return id(random_num);'
+          white: 60%
+          red: 60%
+          blue: 60%
+          green: 60%
+      - delay: 100ms
+      - light.addressable_set:
+          id: alllights
+          range_from: !lambda 'return id(random_num);'
+          range_to: !lambda 'return id(random_num);'
+          white: 50%
+          red: 50%
+          blue: 50%
+          green: 50%
+      - delay: 100ms
+      - light.addressable_set:
+          id: alllights
+          range_from: !lambda 'return id(random_num);'
+          range_to: !lambda 'return id(random_num);'
+          white: 100%
+          red: 100%
+          blue: 100%
+          green: 100%
+      - delay: 100ms
+      - light.addressable_set:
+          id: alllights
+          range_from: !lambda 'return id(random_num);'
+          range_to: !lambda 'return id(random_num);'
+          white: 60%
+          red: 60%
+          blue: 60%
+          green: 60%
+      - delay: 100ms
+      - light.addressable_set:
+          id: alllights
+          range_from: !lambda 'return id(random_num);'
+          range_to: !lambda 'return id(random_num);'
+          white: 30%
+          red: 30%
+          blue: 30%
+          green: 30%
+      - delay: 6000ms
+      - light.turn_off:
+          id: alllights
+          transition_length: 2500ms
+  - id: rnd_blink
+    mode: single
+    then:
+      - script.wait: choose_rnd_drink
+      - if:
+          condition:
+            - script.is_running: choose_rnd_drink
+          then:
+            - script.stop: rnd_blink
+      - if:
+          condition:
+            - lambda: 'return ((millis() - id(last_execution_timestamp)) < 42000);'
+          then:
+            - script.stop: rnd_blink
+      - light.turn_off:
+          id: alllights
+          transition_length: 10ms
+      - delay: 10ms
+      - globals.set:
+          id: random_blink
+          value: !lambda 'return (rand() % $num_leds);'
+      - repeat:
+          count: 19
+          then:
+            - light.addressable_set:
+                id: alllights
+                range_from: !lambda 'return id(random_blink);'
+                range_to: !lambda 'return id(random_blink);'
+                white: !lambda 'return (iteration * 0.05);'
+                red:  !lambda 'return (iteration * 0.05);'
+                blue:  !lambda 'return (iteration * 0.05);'
+                green:  !lambda 'return (iteration * 0.05);'
+            - delay: 23ms
+      - light.turn_off:
+          id: alllights
+          transition_length: !lambda 'return (19*23);'
+
+interval:
+  - interval: 16s
+    then:
+      - script.execute: rnd_blink
+
+binary_sensor:
+  - platform: gpio
+    name: "Big Button"
+    id: onboard_button
+    pin:
+      number: 0
+      mode:
+        input: true
+        pullup: false
+    filters:
+      - delayed_on: 10ms
+    internal: true
+    on_press:
+      then:
+        - script.execute: choose_rnd_drink
+  # - platform: gpio
+  #   name: "Big Button"
+  #   id: ext_button_
+  #   pin:
+  #     number: 4
+  #     mode:
+  #       input: true
+  #       pullup: true
+  #   filters:
+  #     - delayed_on: 10ms
+  #   internal: true
+  #   on_press:
+  #     then:
+  #       - script.execute: choose_rnd_drink
+  - platform: gpio
+    name: "Big Button"
+    id: ext_button_sck
+    pin:
+      number: 13
+      mode:
+        input: true
+        pullup: true
+    filters:
+      - delayed_on: 10ms
+    internal: true
+    on_press:
+      then:
+        - script.execute: choose_rnd_drink
+
+button:
+  - platform: template
+    name: Start Randomizer
+    on_press:
+      then:
+        - script.execute: choose_rnd_drink
+
+
+output:
+  - platform: ledc
+    pin: 16
+    id: out1
+  - platform: ledc
+    pin: 17
+    id: out2
+  - platform: ledc
+    pin: 18
+    id: out3
+  - platform: ledc
+    pin: 19
+    id: out4
+  - platform: ledc
+    pin: 21
+    id: out5
+  - platform: ledc
+    pin: 22
+    id: out6
+  - platform: ledc
+    pin: 23
+    id: out7
+  - platform: ledc
+    pin: 25
+    id: out8
+  - platform: ledc
+    pin: 26
+    id: out9
+  - platform: ledc
+    pin: 27
+    id: out10
+  - platform: ledc
+    pin: 32
+    id: out11
+  - platform: ledc
+    pin: 33
+    id: out12
+
+light:
+  - platform: monochromatic
+    id: drink01
+#    name: drink01
+    output: out1
+  - platform: monochromatic
+    id: drink02
+#    name: drink02
+    output: out2
+  - platform: monochromatic
+    id: drink03
+#    name: drink03
+    output: out3
+  - platform: monochromatic
+    id: drink04
+#    name: drink04
+    output: out4
+  - platform: monochromatic
+    id: drink05
+#    name: drink05
+    output: out5
+  - platform: monochromatic
+    id: drink06
+#    name: drink06
+    output: out6
+  - platform: monochromatic
+    id: drink07
+#    name: drink07
+    output: out7
+  - platform: monochromatic
+    id: drink08
+#    name: drink08
+    output: out8
+  - platform: monochromatic
+    id: drink09
+#    name: drink09
+    output: out9
+  - platform: monochromatic
+    id: drink10
+#    name: drink10
+    output: out10
+  - platform: monochromatic
+    id: drink11
+#    name: drink11
+    output: out11
+  - platform: monochromatic
+    id: drink12
+#    name: drink12
+    output: out12
+  - platform: partition
+    id: alllights
+    segments:
+      # - single_light_id: drink01
+      - single_light_id: drink02
+      - single_light_id: drink03
+      - single_light_id: drink04
+      - single_light_id: drink05
+      - single_light_id: drink06
+      - single_light_id: drink07
+      # - single_light_id: drink08
+      # - single_light_id: drink09
+      - single_light_id: drink10
+      - single_light_id: drink11
+      - single_light_id: drink12

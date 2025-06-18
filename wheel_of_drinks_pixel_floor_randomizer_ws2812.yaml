@@ -1,0 +1,120 @@
+## Control a Winkekatze
+#===============================================================================
+substitutions:
+  device_name: wheel_of_drinks
+  device_friendly_name: "Wheel Of Drinks"
+  num_leds: "0xFF"
+#===============================================================================
+
+esphome:
+  name: ${device_name}
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: ESP32S3
+  framework:
+    # type: esp-idf
+    # version: recommended
+    type: arduino
+    # version: recommended
+
+wifi:
+  networks:
+  - ssid: !secret iotwifi_name
+    password: !secret iotwifi_pass
+    priority: 10
+
+  reboot_timeout: 5h
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_name} fallback"
+    password: !secret fallbackwifi2_pass
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_encryption_psk
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+web_server:
+  port: 80
+
+globals:
+  - id: random_num
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: random_cntdown
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+
+script:
+  - id: choose_rnd_drink
+    mode: single
+    then:
+      - globals.set:
+          id: random_cntdown
+          value: !lambda 'return (rand() & 0x7F + 32);'
+      - repeat:
+          count: !lambda 'return id(random_cntdown);'
+          then:
+            - globals.set:
+                id: random_num
+                value: !lambda 'return (rand() & $num_leds);'
+            - light.turn_off:
+                id: leds
+                # brightness: 100%
+                # red: 100%
+                # green: 100%
+                # blue: 100%
+                transition_length: 10ms
+            - light.addressable_set:
+                id: leds
+                range_from: !lambda 'return id(random_num);'
+                range_to:  !lambda 'return id(random_num);'
+                red: 60%
+                green: 40%
+                blue: 40%
+            - delay: 30ms
+      - delay: 50ms
+      - light.addressable_set:
+          id: leds
+          range_from: !lambda 'return id(random_num);'
+          range_to:  !lambda 'return id(random_num);'
+          red: 100%
+          green: 90%
+          blue: 90%
+
+binary_sensor:
+  - platform: gpio
+    name: "Big Button"
+    id: big_button
+    pin:
+      number: 0
+    internal: true
+    on_press:
+      then:
+        - script.execute: choose_rnd_drink
+
+light:
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812x
+    method:
+      type: esp32_rmt
+      channel: 1
+    # rgb_order: GRB
+    # chipset: WS2812B
+    pin: 14
+    num_leds: 512
+    id: leds
+    name: "Led Panels"
+

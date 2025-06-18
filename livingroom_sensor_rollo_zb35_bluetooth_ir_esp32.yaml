@@ -26,8 +26,6 @@ esphome:
   on_boot:
    - script.execute: rollo_set_gpio_to_input
    - script.wait: rollo_set_gpio_to_input
-  includes:
-    - gpio_tristate_output_esp-idf.h
   platformio_options:
     board_build.flash_mode: dio
 
@@ -39,6 +37,17 @@ esp32:
     sdkconfig_options:
       CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
       CONFIG_BT_BLE_50_FEATURES_SUPPORTED: y
+
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/btittelbach/esphome_gpio_tristate
+      ref: main
+      # type: local
+      # path: /home/bernhard/source/esphome_gpio_tristate/esphome/components/
+    components: [ "gpio_tristate" ]
+
 
 wifi:
   ssid: !secret iotwifi_name
@@ -113,16 +122,19 @@ climate:
 #######################################
 ### Bluetooth Proxy
 #######################################
+## works much better with LAN
 
-esp32_ble_tracker:
-  scan_parameters:
-    interval: 1100ms
-    window: 1100ms
-    active: true
 
-bluetooth_proxy:
-  active: true
-
+# esp32_ble_tracker:
+#   scan_parameters:
+#     #  only use these values on Ethernet not WIFI
+#     # interval: 1100ms
+#     # window: 1100ms
+#     active: true
+#
+# bluetooth_proxy:
+#   active: true
+#
 
 #######################################
 ### Sensor Configuration
@@ -158,44 +170,32 @@ sensor:
 #######################################
 ### ZB35 Rollo Control
 #######################################
-# GPIO12-GPIO15
+# GPIO04-GPIO07
 
 output:
-  - platform: custom
-    type: float
-    lambda: |-
-      auto my_tristate_pin11 = new MyTriStateOutput(4);
-      App.register_component(my_tristate_pin11);
-      return {my_tristate_pin11};
-    outputs:
-      id: gpio_zb35_b0
+  - platform: gpio_tristate
+    pin:
+      number: 4
+      mode: input
+    id: gpio_zb35_b0
 
-  - platform: custom
-    type: float
-    lambda: |-
-      auto my_tristate_pin12 = new MyTriStateOutput(5);
-      App.register_component(my_tristate_pin12);
-      return {my_tristate_pin12};
-    outputs:
-      id: gpio_zb35_b1
+  - platform: gpio_tristate
+    pin:
+      number: 5
+      mode: input
+    id: gpio_zb35_b1
 
-  - platform: custom
-    type: float
-    lambda: |-
-      auto my_tristate_pin13 = new MyTriStateOutput(6);
-      App.register_component(my_tristate_pin13);
-      return {my_tristate_pin13};
-    outputs:
-      id: gpio_zb35_b2
+  - platform: gpio_tristate
+    pin:
+      number: 6
+      mode: input
+    id: gpio_zb35_b2
 
-  - platform: custom
-    type: float
-    lambda: |-
-      auto my_tristate_pin14 = new MyTriStateOutput(7);
-      App.register_component(my_tristate_pin14);
-      return {my_tristate_pin14};
-    outputs:
-      id: gpio_zb35_b3
+  - platform: gpio_tristate
+    pin:
+      number: 7
+      mode: input
+    id: gpio_zb35_b3
 
 
 script:
@@ -405,7 +405,6 @@ light:
     name: "${room_friendly_name} Notification Pixel"
     pin: 48
     num_leds: 2
-    rmt_channel: 1
     rgb_order: GRB
     chipset: ws2812
     effects:

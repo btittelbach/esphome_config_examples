@@ -22,8 +22,8 @@ esphome:
 
 rp2040:
   board: rpipicow
-  framework:
-    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
+  # framework:
+  #   platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
 
 # external_components:
 #   - source: github://Herbycheck/esphome@dsmr-unit-fix
@@ -40,7 +40,7 @@ wifi:
   - ssid: !secret realraumwifi_name
     password: !secret realraumwifi_pass
     priority: 4
-  reboot_timeout: 24h
+  reboot_timeout: 12h
 
   ap:
     ssid: "${device_name} fallback"
@@ -50,7 +50,7 @@ wifi:
 api:
   encryption:
     key: !secret api_encryption_psk
-  reboot_timeout: 10h
+  reboot_timeout: 6h
 
 logger:
   baud_rate: 0
