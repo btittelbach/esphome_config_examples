@@ -1,0 +1,190 @@
+## Wheel of Drinks - Bottom Light Selector
+## Press the button (BOOT on PCB or GND to SD or bridge the outer pins of the 3pin-headers)
+#===============================================================================
+substitutions:
+  device_name: wheel-of-drinks
+  device_friendly_name: "Wheel Of Drinks"
+  num_leds: "9"
+#===============================================================================
+
+esphome:
+  name: ${device_name}
+
+esp32:
+  board: esp32doit-devkit-v1
+  # variant: ESP32S3
+  framework:
+    # type: esp-idf
+    # version: recommended
+    type: arduino
+    # version: recommended
+    # platform_version: platformio/espressif32 @ 6.1.0
+
+wifi:
+  networks:
+  - ssid: !secret iotwifi_name
+    password: !secret iotwifi_pass
+    priority: 10
+  reboot_timeout: 5h
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_name} fallback"
+    password: !secret fallbackwifi2_pass
+
+# Enable logging
+logger:
+
+# # Enable Home Assistant API
+# api:
+#   encryption:
+#     key: !secret api_encryption_psk
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+web_server:
+  port: 80
+
+globals:
+  - id: random_blink
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+
+script:
+  - id: rnd_blink
+    mode: single
+    then:
+      - light.turn_off:
+          id: alllights
+          transition_length: 10ms
+      - delay: 10ms
+      - globals.set:
+          id: random_blink
+          value: !lambda 'return (rand() % $num_leds);'
+      - repeat:
+          count: 19
+          then:
+            - light.addressable_set:
+                id: alllights
+                range_from: !lambda 'return id(random_blink);'
+                range_to: !lambda 'return id(random_blink);'
+                white: !lambda 'return (iteration * 0.05);'
+                red:  !lambda 'return (iteration * 0.05);'
+                blue:  !lambda 'return (iteration * 0.05);'
+                green:  !lambda 'return (iteration * 0.05);'
+            - delay: 23ms
+      - light.turn_off:
+          id: alllights
+          transition_length: !lambda 'return (19*23);'
+
+interval:
+  - interval: 3500ms
+    then:
+      - script.execute: rnd_blink
+
+
+output:
+  - platform: ledc
+    pin: 16
+    id: out1
+  - platform: ledc
+    pin: 17
+    id: out2
+  - platform: ledc
+    pin: 18
+    id: out3
+  - platform: ledc
+    pin: 19
+    id: out4
+  - platform: ledc
+    pin: 21
+    id: out5
+  - platform: ledc
+    pin: 22
+    id: out6
+  - platform: ledc
+    pin: 23
+    id: out7
+  - platform: ledc
+    pin: 25
+    id: out8
+  - platform: ledc
+    pin: 26
+    id: out9
+  - platform: ledc
+    pin: 27
+    id: out10
+  - platform: ledc
+    pin: 32
+    id: out11
+  - platform: ledc
+    pin: 33
+    id: out12
+
+light:
+  - platform: monochromatic
+    id: drink01
+#    name: drink01
+    output: out1
+  - platform: monochromatic
+    id: drink02
+#    name: drink02
+    output: out2
+  - platform: monochromatic
+    id: drink03
+#    name: drink03
+    output: out3
+  - platform: monochromatic
+    id: drink04
+#    name: drink04
+    output: out4
+  - platform: monochromatic
+    id: drink05
+#    name: drink05
+    output: out5
+  - platform: monochromatic
+    id: drink06
+#    name: drink06
+    output: out6
+  - platform: monochromatic
+    id: drink07
+#    name: drink07
+    output: out7
+  - platform: monochromatic
+    id: drink08
+#    name: drink08
+    output: out8
+  - platform: monochromatic
+    id: drink09
+#    name: drink09
+    output: out9
+  - platform: monochromatic
+    id: drink10
+#    name: drink10
+    output: out10
+  - platform: monochromatic
+    id: drink11
+#    name: drink11
+    output: out11
+  - platform: monochromatic
+    id: drink12
+#    name: drink12
+    output: out12
+  - platform: partition
+    id: alllights
+    segments:
+      # - single_light_id: drink01
+      - single_light_id: drink02
+      - single_light_id: drink03
+      - single_light_id: drink04
+      - single_light_id: drink05
+      - single_light_id: drink06
+      - single_light_id: drink07
+      # - single_light_id: drink08
+      # - single_light_id: drink09
+      - single_light_id: drink10
+      - single_light_id: drink11
+      - single_light_id: drink12
