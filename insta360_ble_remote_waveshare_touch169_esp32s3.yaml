@@ -1,0 +1,643 @@
+#===============================================================================
+substitutions:
+  device_name: insta360_x4_remote
+  room_friendly_name: "Insta360 BLE remote Waveshare Touch 1.69 ESP32-S3"
+  ble_insta360_shutter_characteristic_write_value: 'FCEF-FE86–0003–0102–00'
+  ble_insta360_mode_characteristic_write_value: 'FCEF-FE86–0003–0101–00'
+  ble_insta360_power_short_press_characteristic_write_value: 'FCEF-FE86–0003–0100–00'
+  ble_insta360_power_3s_press_characteristic_write_value: 'FCEF-FE86–0003–0100–03'
+  ble_insta360_expected_name: "Insta360 GPS Remote"
+  ble_insta360_service_uuid: "0xce80"
+  ble_insta360_characteristic_uuid1: "0xce81"
+  ble_insta360_characteristic_uuid2: "0xce82"
+  ble_insta360_characteristic_uuid3: "0xce83"
+  ble_insta360_secondary_service_uuid: "0000D0FF-3C17-D293-8E48-14FE2E4DA212"
+  ble_insta360_secondary_characteristic_uuid1: "ffd1"
+  ble_insta360_secondary_characteristic_uuid2: "ffd2"
+  ble_insta360_secondary_characteristic_uuid3: "ffd3"
+  ble_insta360_secondary_characteristic_uuid4: "ffd4"
+  ble_insta360_secondary_characteristic_uuid5: "ffd5"
+  ble_insta360_secondary_characteristic_uuid8: "ffd8"
+  ble_insta360_secondary_characteristic_uuid9: "fff1"
+  ble_insta360_secondary_characteristic_uuid10: "fff2"
+  ble_insta360_secondary_characteristic_uuid11: "ffe0"
+#===============================================================================
+## Schematic: https://files.waveshare.com/wiki/ESP32-S3-Touch-LCD-1.69/ESP32-S3-Touch-LCD-1.69_V2.1.pdf
+# screen: 240 x 280
+
+## Insta360:
+## - https://esphome.io/components/esp32_ble_server.html
+## - https://medium.com/@patrickchwalek/ble-control-of-insta360-cameras-7bf6894648a4
+## - https://github.com/pchwalek/insta360_ble_esp32/blob/main/Insta_BLE.ino#L241
+## - https://hackaday.io/project/188975-insta360-x3-ble-remote-control-with-esp32
+## - https://github.com/tsunghowu/insta360_ble_rc_rpi_pico_w/blob/main/ble_ski_cam_remote.py
+
+esphome:
+  name: ${device_name}
+  on_boot:
+    - output.turn_on: sys_en_keep_power_on
+    - component.update: touch_display
+    - button.press: BtnShortBuzz
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+    # type: arduino
+
+logger:
+
+esp32_ble:
+  name: "${ble_insta360_expected_name}"
+
+esp32_ble_server:
+  manufacturer: "Insta360"
+  ## for non-wakeup
+  manufacturer_data: [0x4C, 0x00, 0x02, 0x15, 0x09, 0x4f, 0x52, 0x42, 0x49, 0x54, 0x09, 0xff, 0x0f, 0x00,   0x00,0x00,0x00,0x00,0x00,0x00,   0x00, 0x00, 0x00, 0x00, 0xe4, 0x01]
+  ## for insta360-cam-BLE-poweron-wakeup, paste the 6 serial# bytes (from esphome debug output) into bytes starting at addr 14 
+  # appearance: 0x6
+  model: "${ble_insta360_expected_name}"
+  id: insta360_x4_ble_server
+  on_connect:
+    - text.set:
+        id: insta360_1_label
+        value: "connected"
+    - text.set:
+        id: insta360_2_label
+        value: "connected"
+  on_disconnect:
+    - text.set:
+        id: insta360_1_label
+        value: "disconnected"
+    - text.set:
+        id: insta360_2_label
+        value: "disconnected"
+  services:
+    - uuid: ${ble_insta360_service_uuid}
+      advertise: true
+      characteristics:
+        - uuid: ${ble_insta360_characteristic_uuid2}
+          id: insta360_ble_characteristic_remotebuttons
+          notify: true ## automatically adds 2902 descriptor, at least docu says so
+          read: false ## should be false
+          write: false
+          value:
+            data: [0x00]
+            # data: 0x00
+            # type: uint8_t
+            # data: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+          indicate: true
+          descriptors:
+            - uuid: 0x2902
+              value: [0x03] # enable notifications and indicate
+
+        - uuid: ${ble_insta360_characteristic_uuid1}
+          id: insta360_ble_characteristic_status
+          write: true
+          read: false
+          ## if it starts with  b'\xfe\xef\xfe\x07\x00', then
+          ## last 6 bytes we receive here are serial number
+          ## and need to be written to manufactur-data advertisement
+          ## to wake up camera
+          on_write:
+            then:
+              - lambda: |-
+                  ESP_LOGD("BLE", "Insta360 status: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", x[0],x[1],x[2],x[3],x[4],x[5],x[6],x[7],x[8],x[9],x[10],x[11],x[12],x[13],x[14]);
+                  ESP_LOGD("BLE", "Insta360 chars: %d %d %d %d %s",x[6], x[7], x[8], x[9], std::string(reinterpret_cast<char*>(&x[10]),min(uint8_t(x[5]-4),uint8_t(20))).c_str() );
+              - if:
+                  condition:
+                    lambda: 'return (x[0] == 0xfe && x[1] == 0xef && x[2] == 0xfe && x[3] == 0x10 && x[4] == 0x81);'
+                  then:
+                    # data len following x[5] is in x[5]
+                    # - lambda: |-
+                    #     ESP_LOGD("BLE", "Insta360 mode: %s", std::string(reinterpret_cast<char*>(&x[10]),min(uint8_t(x[5]-4),uint8_t(16))) );
+                    - text.set:
+                        id: text_insta360_mode
+                        value: !lambda 'return(to_string((uint16_t(x[7])<<8)|uint16_t(x[8]))+std::string(" - ")+std::string(reinterpret_cast<char*>(&x[10]),min(uint8_t(x[5]-4),uint8_t(16))));'
+              - if:
+                  condition:
+                    lambda: 'return (x[0] == 0xfe && x[1] == 0xef && x[2] == 0xfe && x[3] == 0x10 && x[4] == 0x80);'
+                  then:
+                    # - lambda: |-
+                    #     ESP_LOGD("BLE", "Insta360 frames: %c%c%c%c",x[11],x[12],x[13],x[14]);
+                    - text.set:
+                        id: insta360_1_label
+                        value: !lambda 'return(std::string("con,")+std::string(reinterpret_cast<char*>(&x[10]),min(uint8_t(x[5]-4),uint8_t(16))));'
+                    - text.set:
+                        id: insta360_2_label
+                        value: !lambda 'return(std::string("con,")+std::string(reinterpret_cast<char*>(&x[10]),min(uint8_t(x[5]-4),uint8_t(16))));'
+              - if:
+                  condition:
+                    lambda: 'return (x[0] == 0xfe && x[1] == 0xef && x[2] == 0xfe && x[3] == 0x02 && x[4] == 0x80);'
+                  then:
+                    - text.set:
+                        id: text_insta360_p
+                        value: !lambda 'return(std::string(reinterpret_cast<char*>(&x[10]),min(uint8_t(x[5]-4),uint8_t(16))));'
+              - if:
+                  condition:
+                    lambda: 'return (x[0] == 0xfe && x[1] == 0xef && x[2] == 0xfe && x[3] == 0x07 && x[4] == 0x00);'
+                  then:
+                  - lambda: |-
+                      ESP_LOGD("BLE", "Insta360 serial: %c%c%c%c%c%c", x[6],x[7],x[8],x[9],x[10],x[11]);
+
+        - uuid: ${ble_insta360_characteristic_uuid3}
+          read: true
+          write: false
+          # value: [0x01,0x02]  #little endian 513
+          value:
+            data: 0x0201
+            type: uint16_t
+            endianness: LITTLE
+          id: insta360_ble_characteristic_other
+    - uuid: "${ble_insta360_secondary_service_uuid}"
+      advertise: true
+      characteristics:
+        - uuid: ${ble_insta360_secondary_characteristic_uuid1}
+          id: insta360_ble_characteristic_secondary_uuid1
+          read: false
+          write: true
+          on_write:
+            then:
+              - lambda: |-
+                  ESP_LOGD("BLE", "Insta360 sv2uuid1 write: %x %x %x %x %x %x", x[0],x[1],x[2],x[3],x[4],x[5]);
+        - uuid: ${ble_insta360_secondary_characteristic_uuid2}
+          id: insta360_ble_characteristic_secondary_uuid2
+          read: true
+          write: false
+        - uuid: ${ble_insta360_secondary_characteristic_uuid3}
+          id: insta360_ble_characteristic_secondary_uuid3
+          read: true
+          write: false
+          value:
+            data: 0x301e9001
+            type: uint32_t
+            endianness: LITTLE
+          # value: [0x01, 0x90, 0x1e, 0x30] #little endian
+          # value: [0x30,0x1e,0x90,0x01]
+        - uuid: ${ble_insta360_secondary_characteristic_uuid4}
+          id: insta360_ble_characteristic_secondary_uuid4
+          read: true
+          write: false
+          value:
+            data: 0x18002001
+            type: uint32_t
+            endianness: LITTLE
+          # value: [0x01, 0x20, 0x00, 0x18] #little endian
+        - uuid: ${ble_insta360_secondary_characteristic_uuid5}
+          id: insta360_ble_characteristic_secondary_uuid5
+          read: true
+          write: false
+        - uuid: ${ble_insta360_secondary_characteristic_uuid8}
+          id: insta360_ble_characteristic_secondary_uuid8
+          read: false
+          write: true
+          on_write:
+            then:
+              - lambda: |-
+                  ESP_LOGD("BLE", "Insta360 uuid8 write: %x %x %x %x %x %x", x[0],x[1],x[2],x[3],x[4],x[5]);
+        - uuid: ${ble_insta360_secondary_characteristic_uuid9}
+          id: insta360_ble_characteristic_secondary_uuid9
+          read: true
+          write: false
+        - uuid: ${ble_insta360_secondary_characteristic_uuid10}
+          id: insta360_ble_characteristic_secondary_uuid10
+          read: false
+          write: true
+          on_write:
+            then:
+              - lambda: |-
+                  ESP_LOGD("BLE", "Insta360 uuid10 write: %x %x %x %x %x %x", x[0],x[1],x[2],x[3],x[4],x[5]);
+        - uuid: ${ble_insta360_secondary_characteristic_uuid11}
+          id: insta360_ble_characteristic_secondary_uuid11
+          read: true
+          write: false
+
+text:
+  - platform: lvgl
+    widget: lvgl_batt_label
+    id: text_battery_label
+    internal: true
+    mode: text
+  - platform: lvgl
+    widget: lvgl_insta360_1_mode_label
+    id: text_insta360_mode
+    internal: true
+    mode: text
+  - platform: lvgl
+    widget: lvgl_insta360_1_p_label
+    id: text_insta360_p
+    internal: true
+    mode: text
+  - platform: lvgl
+    widget: lvgl_insta360_1_label
+    id: insta360_1_label
+    internal: true
+    mode: text
+  - platform: lvgl
+    widget: lvgl_insta360_2_label
+    id: insta360_2_label
+    internal: true
+    mode: text
+
+button:
+  - platform: template
+    id: "BtnShortBuzz"
+    name: "BtnShortBuzz"
+    on_press:
+      then:
+        - switch.turn_on: buzzer_switch
+        - delay: 7ms
+        - switch.turn_off: buzzer_switch
+        - delay: 7ms
+        - switch.turn_on: buzzer_switch
+        - delay: 7ms
+        - switch.turn_off: buzzer_switch
+
+
+psram:
+   mode: octal # quad
+   speed: 80MHz
+   enable_ecc: true
+
+## i2c configuration
+i2c:
+  - id: sensor_i2c
+    scl: 10
+    sda: 11
+    scan: True
+
+spi:
+  - id: spi_tft
+    mosi_pin: 7
+    clk_pin: 6
+
+deep_sleep:
+  id: esp32_deep_sleep
+
+display:
+  - platform: ili9xxx
+    model: st7789v
+    id: touch_display
+    cs_pin: 5
+    dc_pin: 4
+    reset_pin: 8
+    spi_id: spi_tft
+    rotation: 270°
+    invert_colors: false
+
+output:
+  - platform: ledc
+    pin: 15
+    id: backlight_pwm
+  - id: sys_en_keep_power_on
+    platform: gpio
+    pin:
+      number: 41
+      mode: OUTPUT
+      inverted: false
+
+
+# Define a monochromatic, dimmable light for the backlight
+light:
+  - platform: monochromatic
+    output: backlight_pwm
+    name: "Display Backlight"
+    id: back_light
+    restore_mode: RESTORE_DEFAULT_ON
+    default_transition_length: 15ms
+
+script:
+  - id: script_fix_backlight
+    mode: single
+    then:
+      - if:
+          condition:
+            or:
+              - light.is_off: back_light
+              - lambda: "return (id(back_light).remote_values.get_brightness() < 0.1);"
+          then:
+            - light.turn_on:
+                id: back_light
+                brightness: 45%
+      - lvgl.slider.update:
+          id: lvgl_backlight
+          value: !lambda "return id(back_light).remote_values.get_brightness() *255;"
+          animated: false
+  - id: "ButtonBuzzFeedback"
+    mode: restart
+    then:
+      - switch.turn_on: buzzer_switch
+      - delay: 5ms
+      - switch.turn_off: buzzer_switch
+  - id: "BtnInsta360Shutter"
+    mode: single
+    then:
+      - ble_server.characteristic.set_value:
+          id: insta360_ble_characteristic_remotebuttons
+          # List of bytes to write. "Insta360 shutter"
+          value:
+            data: [0xfc, 0xef, 0xfe, 0x86, 0x00, 0x03, 0x01, 0x02, 0x00]
+      - ble_server.characteristic.notify:
+          id: insta360_ble_characteristic_remotebuttons
+  - id: "BtnInsta360PowerOff"
+    mode: single
+    then:
+      - ble_server.characteristic.set_value:
+          id: insta360_ble_characteristic_remotebuttons
+          # List of bytes to write. "Insta360 poweroff"
+          value:
+            data: [0xfc, 0xef, 0xfe, 0x86, 0x00, 0x03, 0x01, 0x00, 0x03]
+      - ble_server.characteristic.notify:
+          id: insta360_ble_characteristic_remotebuttons
+  - id: "BtnInsta360ScreenToggle"
+    mode: single
+    then:
+      - ble_server.characteristic.set_value:
+          id: insta360_ble_characteristic_remotebuttons
+          # List of bytes to write. "Insta360 screentoggle"
+          value:
+            data: [0xfc, 0xef, 0xfe, 0x86, 0x00, 0x03, 0x01, 0x00, 0x00]
+      - ble_server.characteristic.notify:
+          id: insta360_ble_characteristic_remotebuttons
+  - id: "BtnInsta360Mode"
+    mode: single
+    then:
+      - ble_server.characteristic.set_value:
+          id: insta360_ble_characteristic_remotebuttons
+          # List of bytes to write. "Insta360 mode"
+          value:
+            data: [0xfc, 0xef, 0xfe, 0x86, 0x00, 0x03, 0x01, 0x01, 0x00]
+      - ble_server.characteristic.notify:
+          id: insta360_ble_characteristic_remotebuttons
+
+
+touchscreen:
+  - platform: cst816
+    id: touch_screen
+    interrupt_pin: 14
+    reset_pin: 13
+    i2c_id: sensor_i2c
+    transform:
+      mirror_x: true
+      mirror_y: false
+      swap_xy: true
+    on_touch:
+      - lambda: |-
+            ESP_LOGI("cal", "x=%d, y=%d, x_raw=%d, y_raw=%0d",
+                touch.x,
+                touch.y,
+                touch.x_raw,
+                touch.y_raw
+                );
+    calibration:
+      y_min: 15
+      y_max: 225
+      x_min: 1
+      x_max: 278
+
+lvgl:
+  - id: touch_display_lvgl
+    displays:
+      - touch_display
+    touchscreens:
+      - touchscreen_id: touch_screen
+    # keypads:
+    #   next: BtnTopSysOut
+    #   prev: BtnMiddleBoot0
+    update_interval: 60ms
+    style_definitions:
+      - id: header_footer
+        bg_color: 0x2F8CD8
+        bg_grad_color: 0x005782
+        bg_grad_dir: VER
+        bg_opa: COVER
+        border_opa: TRANSP
+        radius: 0
+        pad_all: 0
+        pad_row: 0
+        pad_column: 0
+        border_color: 0x0077b3
+        text_color: 0xFFFFFF
+        width: 100%
+        height: 23
+    on_boot:
+      - script.execute: script_fix_backlight
+    on_swipe_left:
+      - lvgl.page.previous:
+    on_swipe_right:
+      - lvgl.page.next:
+    on_idle:
+      - timeout: 80s
+        then:
+          - output.turn_off: sys_en_keep_power_on
+          - delay: 500ms
+      - timeout: 3min
+        then: ## if we are still here .. it may be because we are charging
+          - deep_sleep.enter:
+              id: esp32_deep_sleep
+    top_layer:
+      widgets:
+        - buttonmatrix:
+            align: bottom_mid
+            styles: header_footer
+            pad_all: 0
+            outline_width: 0
+            id: top_layer
+            items:
+              styles: header_footer
+            rows:
+              - buttons:
+                - id: page_prev
+                  text: "\uF053"
+                  on_press:
+                    then:
+                      lvgl.page.previous:
+                - id: page_home
+                  text: "\uF015"
+                  on_press:
+                    then:
+                      lvgl.page.show: page_internal
+                - id: page_next
+                  text: "\uF054"
+                  on_press:
+                    then:
+                      lvgl.page.next:
+    page_wrap: true
+    pages:
+      - id: page_internal
+        widgets:
+          - label:
+              align: TOP_MID
+              text: Brightness
+          - slider:
+              id: lvgl_backlight
+              align: CENTER
+              height: 30
+              width: 160
+              pad_all: 8
+              min_value: 0
+              max_value: 255
+              on_release:
+                - light.turn_on:
+                    id: back_light
+                    brightness: !lambda return float(int(x))/255;
+                    transition_length: 0s
+          - label:
+              id: lvgl_batt_label
+              align: BOTTOM_MID
+              text: Batt
+              height: 60
+      - id: page_insta360_1
+        widgets:
+          - label:
+              id: lvgl_insta360_1_top_label
+              align: TOP_MID
+              text: "Insta360 X4"
+          - label:
+              id: lvgl_insta360_1_label
+              align_to:
+                id: lvgl_insta360_1_top_label
+                align: OUT_BOTTOM_MID
+              text: "not connected"
+          - label:
+              id: lvgl_insta360_1_mode_label
+              align_to:
+                id: lvgl_insta360_1_label
+                align: OUT_BOTTOM_MID
+              text: "mode?"
+          - label:
+              id: lvgl_insta360_1_p_label
+              align: BOTTOM_MID
+              height: 45
+              text: "_"
+          - buttonmatrix:
+              align: CENTER
+              pad_all: 14
+              outline_width: 0
+              rows:
+                - buttons:
+                  - id: lvgl_insta360_shutter
+                    on_click:
+                      - script.execute: ButtonBuzzFeedback
+                      - script.execute: BtnInsta360Shutter
+                    text: Shutter
+                  - id: lvgl_insta360_mode
+                    on_click:
+                      - script.execute: ButtonBuzzFeedback
+                      - script.execute: BtnInsta360Mode
+                    text: Mode
+      - id: page_insta360_2
+        widgets:
+          - label:
+              align: TOP_MID
+              text: "Insta360 X4"
+              id: lvgl_insta360_2_top_label
+          - label:
+              align_to:
+                id: lvgl_insta360_2_top_label
+                align: OUT_BOTTOM_MID
+              text: "not connected"
+              id: lvgl_insta360_2_label
+          - buttonmatrix:
+              align: CENTER
+              pad_all: 14
+              outline_width: 0
+              rows:
+                - buttons:
+                  - id: lvgl_insta360_screen_toggle
+                    on_click:
+                      - script.execute: ButtonBuzzFeedback
+                      - script.execute: BtnInsta360ScreenToggle
+                    text: Screen
+                  - id: lvgl_insta360_power_off
+                    on_click:
+                      - script.execute: ButtonBuzzFeedback
+                      - script.execute: BtnInsta360PowerOff
+                    text: PwrOff
+
+# font:
+#   - file: "gfonts://Roboto"
+#     id: roboBfont
+#     size: 20
+
+time:
+  - platform: pcf85063
+    id: pcf85063_time
+    i2c_id: sensor_i2c
+
+switch:
+  - platform: gpio
+    pin:
+      number: 42
+      mode: OUTPUT
+      inverted: false
+    name: "Buzzer"
+    id: buzzer_switch
+    restore_mode: ALWAYS_OFF
+
+sensor:
+  - platform: adc
+    name: "Battery Voltage"
+    id: battery_voltage
+    attenuation: 12db
+    pin:
+      number: 1
+    update_interval: 60s
+    filters:
+      - multiply: 3
+    on_value:
+      - text.set:
+          id: text_battery_label
+          value: !lambda 'return(std::string("BAT: ")+std::to_string(x).substr(0,4)+"V");'
+
+  # - platform: qmi8658
+  #   i2c_id: sensor_i2c
+  #   address: 0x6B
+  #   interrupt_pin_1: 38
+  #   # interrupt_pin_2: GPIO13       # Warning! Activating this with debug logging may kill your prompt ;)
+  #   # acceleration_range: 4g
+  #   # acceleration_odr: 100hz
+  #   acceleration_x:
+  #     name: "QMI8658 Acceleration X"
+  #   acceleration_y:
+  #     name: "QMI8658 Acceleration Y"
+  #   acceleration_z:
+  #     name: "QMI8658 Acceleration Z"
+  #   gyroscope_x:
+  #     name: "QMI8658 Gyro X"
+  #   gyroscope_y:
+  #     name: "QMI8658 Gyro Y"
+  #   gyroscope_z:
+  #     name: "QMI8658 Gyro Z"
+  #   temperature:
+  #     name: "QMI8658 Temperature"
+  #     filters:
+  #       - offset: 34.0
+  #   update_interval: 5s
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: 0
+      mode: INPUT_PULLUP
+      inverted: True
+      # allow_other_uses: true
+    id: BtnMiddleBoot0
+    on_press:
+      then:
+        - lvgl.resume:
+        - lvgl.page.next:
+
+  - platform: gpio
+    pin:
+      number: 40
+      mode: INPUT_PULLUP
+      inverted: True
+      # allow_other_uses: false # also battery measurement
+    id: BtnTopSysOut
+    on_press:
+      then:
+        - lvgl.resume:
+        - lvgl.page.previous:
+
+
